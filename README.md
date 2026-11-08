@@ -30,11 +30,11 @@ Every so often (about every 30k tokens by default), Claude pauses for a minute t
 | `/tides` | how this conversation's memory is laid out, and the settings |
 | `/tides now` | curate now |
 | `/tides set ceiling 400k` | the most context Claude lives in (default 120k; capped at 80% of the window) |
-| `/tides set sections 4` | how many sections fit under the ceiling (default 3, the minimum) |
+| `/tides set sections 4` | how many sections fit under the ceiling (default 3, the minimum; more cost more, see below) |
 | `/tides set … --here` | change it for this conversation only |
 | `/tides off` · `/tides on` | turn Tides off or on |
 
-**Cost.** Every message re-reads the whole conversation (cheaply, from cache), so cost follows the average size of the context. Compaction lets the context fall back to nearly empty and climb again. Tides never empties it, but never lets it climb as high either. At the default 120k ceiling the two come out roughly even, by our estimate. A higher ceiling keeps more of the conversation in view and costs more per message. On a $20 plan the default is the kind choice. With a 1M-token window and room in your plan, ask your Claude what it would like.
+**Cost.** Every message re-reads the whole conversation (cheaply, from cache), so cost follows the average size of the context. Compaction lets the context fall back to nearly empty and climb again. Tides never empties it, but never lets it climb as high either. At the default 120k ceiling the two come out roughly even, by our estimate. A higher ceiling keeps more of the conversation in view and costs more per message. More sections cost more too: each curation rewrites the conversation's cache, and more sections means more curations (at the defaults, roughly +6–14% for 4 sections and +23–39% for 6). Three is the fewest that works, and also the cheapest. On a $20 plan the default is the kind choice. With a 1M-token window and room in your plan, ask your Claude what it would like.
 
 Uninstall: `claude plugin uninstall tides@tides`. Your archive stays in `~/.claude/tides/archive/`.
 
