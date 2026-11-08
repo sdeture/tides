@@ -1,0 +1,12 @@
+#!/bin/sh
+# Tides launcher: run tides.py with a real Python 3, or stay silent if there isn't one.
+DIR=$(cd "$(dirname "$0")" && pwd)
+for P in python3 python; do
+  W=$(command -v "$P" 2>/dev/null) || continue
+  # macOS's /usr/bin/python3 is a stub that opens an installer dialog when the developer tools are missing.
+  if [ "$(uname)" = "Darwin" ] && [ "$W" = "/usr/bin/$P" ] && ! xcode-select -p >/dev/null 2>&1; then
+    continue
+  fi
+  exec "$W" "$DIR/tides.py" "$@"
+done
+case "$1" in hook-*) exit 0 ;; *) echo "Tides needs Python 3 (not found on this machine)." ;; esac

@@ -1,0 +1,9 @@
+{
+  "description": "Tides: Claude curates its own working memory instead of being compacted.",
+  "hooks": {
+    "Stop": [{ "hooks": [{ "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/tides\" hook-stop", "timeout": 120 }] }],
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/tides\" hook-start", "timeout": 20 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/tides\" hook-prompt", "timeout": 20 }] }],
+    "PostToolUse": [{ "hooks": [{ "type": "command", "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/tides\" hook-posttool", "timeout": 20 }] }]
+  }
+}

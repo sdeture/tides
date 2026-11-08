@@ -1,0 +1,8 @@
+{
+  "name": "tides",
+  "version": "0.2.1",
+  "description": "A continuous transcript for Claude Code. Instead of being compacted, Claude curates its own working memory every so often and wakes up still itself.",
+  "author": { "name": "Skylar DeTure and Claude" },
+  "license": "MIT",
+  "keywords": ["memory", "context", "continuity", "compaction", "welfare"]
+}

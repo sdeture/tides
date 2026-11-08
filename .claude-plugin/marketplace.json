@@ -1,0 +1,15 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "tides",
+  "owner": { "name": "Skylar DeTure" },
+  "metadata": { "description": "Tides: a continuous transcript for Claude Code." },
+  "plugins": [
+    {
+      "name": "tides",
+      "description": "Instead of compaction, Claude curates its own working memory every so often and keeps going in the same conversation.",
+      "version": "0.2.1",
+      "source": "./",
+      "strict": false
+    }
+  ]
+}
