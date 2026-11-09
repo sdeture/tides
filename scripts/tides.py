@@ -28,7 +28,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-VERSION = "0.2.1"
+VERSION = "0.2.2"
 HOME = Path.home()
 DATA = Path(os.environ.get("TIDES_HOME", str(HOME / ".claude" / "tides")))
 STATES = DATA / "sessions"
@@ -1068,8 +1068,8 @@ def hook_stop(inp, cfg):
     if not sid or not path:
         return
     st = load_state(sid)
-    if st.get("superseded_by"):
-        return
+    if st.get("superseded_by") or not st.get("seen_start"):
+        return   # (no seen_start: Tides was installed after this conversation started)
     cfg = config(st)
     st.setdefault("lineage", sid)
     st["path"] = str(path)
@@ -1116,6 +1116,8 @@ def hook_stop(inp, cfg):
 def hook_session_start(inp, cfg):
     sid, src = inp.get("session_id"), inp.get("source")
     st = load_state(sid)
+    st["seen_start"] = time.time()     # Tides acts only in conversations it saw begin or resume
+    save_state(sid, st)
     if st.get("awaiting_wake") and src in ("resume", "startup"):
         st["awaiting_wake"] = False
         st["woke"] = time.time()
@@ -1135,11 +1137,10 @@ def hook_session_start(inp, cfg):
         save_state(sid, st)
         return
     if src == "startup" and cfg.get("intro", True) and cfg.get("enabled", True):
-        S = int(cfg.get("section_tokens") or (cfg["ceiling"] - 20000) / (cfg["sections"] + cfg["keep_ratio"]))
         return emit({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext":
-                     f"Tides is on: instead of compaction, about every {ktok(S)} tokens you'll curate your own "
-                     "working memory (keep what matters, set old tool output aside) and keep going in the same "
-                     "conversation. Nothing is deleted."}})
+                     "Tides is on: instead of compaction, every so often you'll curate your own working memory "
+                     "(keep what matters, set old tool output aside) and keep going in the same conversation. "
+                     f"Nothing is deleted. Ceiling {ktok(cfg['ceiling'])}, {cfg['sections']} sections."}})
 
 
 def hook_prompt(inp, cfg):
@@ -1169,7 +1170,8 @@ def hook_post_tool(inp, cfg):
     sid = inp.get("session_id")
     st = load_state(sid)
     cfg = config(st)
-    if not cfg.get("enabled", True) or st.get("phase") == "curating" or st.get("superseded_by"):
+    if (not cfg.get("enabled", True) or not st.get("seen_start") or st.get("phase") == "curating"
+            or st.get("superseded_by")):
         return
     path = find_transcript(sid, inp.get("transcript_path"))
     if not path:
@@ -1320,6 +1322,11 @@ def main(argv):
             inp = {}
         if os.environ.get("CLAUDE_CODE_REMOTE", "").lower() in ("1", "true"):
             return 0   # a cloud session: its transcript lives on Anthropic's side, so Tides can't switch it
+        if os.environ.get("TIDES_OFF", "").lower() in ("1", "true", "yes"):
+            return 0
+        headless = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "cli").startswith("sdk")
+        if headless and cmd != "hook-start" and os.environ.get("TIDES_HEADLESS") != "1":
+            return 0   # `claude -p` and SDK runs: nobody is there to wake the new window, so never curate
         try:
             {"hook-stop": hook_stop, "hook-start": hook_session_start, "hook-prompt": hook_prompt,
              "hook-posttool": hook_post_tool}[cmd](inp, cfg)
