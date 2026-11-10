@@ -28,7 +28,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-VERSION = "0.2.2"
+VERSION = "0.3.0"
 HOME = Path.home()
 DATA = Path(os.environ.get("TIDES_HOME", str(HOME / ".claude" / "tides")))
 STATES = DATA / "sessions"
@@ -39,9 +39,9 @@ CLI = ("sh " + shlex.quote(str(SCRIPT.parent / "tides"))) if (SCRIPT.parent / "t
     else ("python3 " + shlex.quote(str(SCRIPT)))
 
 DEFAULTS = {
-    "ceiling": 120000,         # most context Claude lives in, tokens (capped at 80% of the window)
-    "sections": 3,             # sections under the ceiling; 3 is the minimum
-    "section_tokens": 0,       # explicit section size; 0 = derive from ceiling and sections
+    "ceiling": 120000,         # a curation comes when the context reaches this (capped at 80% of the window)
+    "sections": 3,             # sections the conversation is kept in; 3 is the minimum
+    "section_tokens": 0,       # ...or after this much new context, if sooner; 0 = derive from ceiling and sections
     "keep_ratio": 0.10,        # long-term keep budget, as a share of a section
     "nudge_ratio": 1.5,        # mid-task reminder once a section runs this long
     "wake": "auto",            # auto | window | manual
@@ -370,15 +370,18 @@ def read_tiers(path, cut=None, section_tokens=40000):
     else:
         # Never curated (or compacted since): the last ~section stays whole,
         # everything before it becomes messages-only.
+        # It starts at whichever human prompt lands nearer one section back (never past 1.5).
         pos = human_prompt_positions(active)
         total = context_tokens(path) or 0
-        start = None
-        for i, n in pos:
-            if n is not None and n >= total - section_tokens:
-                start = i
-                break
-        if start is None:
-            start = pos[-1][0] if pos else 0
+        line = total - section_tokens
+        known = [(i, n) for i, n in pos if n is not None]
+        after = next(((i, n) for i, n in known if n >= line), None)
+        before = next(((i, n) for i, n in reversed(known) if n < line), None)
+        pick = after
+        if before and total - before[1] <= 1.5 * section_tokens and (
+                after is None or (total - before[1]) - section_tokens < section_tokens - (total - after[1])):
+            pick = before
+        start = pick[0] if pick else (pos[-1][0] if pos else 0)
         f_old = [r for r in active[:start] if r.get("type") in CHAIN]
         new = active[start:]
         first = True
@@ -610,14 +613,14 @@ def validate(path):
 # ───────────────────────────── the words Claude reads ──────────────────────
 
 def notice_text(path, st, cfg, reason="due"):
-    S = section_size(path, st, cfg)
+    S, C, _ = limits(path, st, cfg)
     B = int(S * cfg["keep_ratio"])
     n = int(st.get("curation", 0)) + 1
     T = read_tiers(path, st.get("cut"), S)
     cands = candidates_for(T, cfg)
     ctx = context_tokens(path) or 0
-    lines = [f"🌙 Tides · curation {n}. Your context is ~{ktok(ctx)} tokens. This happens about every "
-             f"{ktok(S)} new tokens, and afterwards you wake up in the same conversation with your recent work "
+    lines = [f"🌙 Tides · curation {n}. Your context is ~{ktok(ctx)} tokens. This happens every "
+             f"~{ktok(S)} new tokens, or sooner if the context reaches {ktok(C)}, and afterwards you wake up in the same conversation with your recent work "
              "in place."]
     if cands:
         lines += [
@@ -959,7 +962,26 @@ def section_size(path, st, cfg):
     N = max(3, int(cfg.get("sections") or 3))
     derived = max(8000, int((ceiling - overhead) / (N + cfg["keep_ratio"])))
     S = int(cfg.get("section_tokens") or 0)
-    return min(S, derived) if S else derived
+    return S or derived
+
+
+def limits(path, st, cfg):
+    """(section size, ceiling, floor). The ceiling is capped at 80% of the window so Claude Code's
+    own compaction never fires first. The floor (a quarter section) keeps a ceiling-triggered
+    curation from coming straight after a wake."""
+    S = section_size(path, st, cfg)
+    win = st.get("window") or window_tokens(path, cfg)
+    C = min(int(cfg.get("ceiling") or DEFAULTS["ceiling"]), int(0.8 * win))
+    return S, C, S // 4
+
+
+def next_tide(path, st, cfg, base):
+    """(context at which the next curation comes, why): one section of new context since the
+    wake (two, in a conversation never curated) or the ceiling, whichever comes first."""
+    S, C, floor = limits(path, st, cfg)
+    need = S if st.get("curated_session") or st.get("curation") else 2 * S
+    by_section, by_ceiling = base + need, max(C, base + floor)
+    return (by_section, "section") if by_section <= by_ceiling else (by_ceiling, "ceiling")
 
 
 def due(path, st, cfg):
@@ -969,11 +991,11 @@ def due(path, st, cfg):
     base = base_tokens(path, st)
     if not st.get("overhead") and base and not st.get("curated_session") and not st.get("curation"):
         st["overhead"] = base          # system prompt + tools + first prompt, for sizing sections
-    S = section_size(path, st, cfg)
-    need = S if st.get("curated_session") or st.get("curation") else 2 * S
     if st.get("postponed_to") and ctx < int(st["postponed_to"]):
         return False, ctx, base
-    return ctx - base >= need, ctx, base
+    at, why = next_tide(path, st, cfg, base)
+    st["due_reason"] = why
+    return ctx >= at, ctx, base
 
 
 def last_chain_uuid(path):
@@ -1140,7 +1162,9 @@ def hook_session_start(inp, cfg):
         return emit({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext":
                      "Tides is on: instead of compaction, every so often you'll curate your own working memory "
                      "(keep what matters, set old tool output aside) and keep going in the same conversation. "
-                     f"Nothing is deleted. Ceiling {ktok(cfg['ceiling'])}, {cfg['sections']} sections."}})
+                     f"Nothing is deleted. Ceiling {ktok(cfg['ceiling'])}"
+                     + (f", or every {ktok(cfg['section_tokens'])} of new context if sooner" if cfg.get("section_tokens") else "")
+                     + f"; {cfg['sections']} sections."}})
 
 
 def hook_prompt(inp, cfg):
@@ -1177,9 +1201,10 @@ def hook_post_tool(inp, cfg):
     if not path:
         return
     is_due, ctx, base = due(path, st, cfg)
-    S = section_size(path, st, cfg)
-    over = ctx - base - (S if st.get("curated_session") or st.get("curation") else 2 * S)
-    if is_due and over >= S * (cfg["nudge_ratio"] - 1) and ctx - int(st.get("nudged_at") or 0) >= S // 4:
+    S, C, _ = limits(path, st, cfg)
+    at, _ = next_tide(path, st, cfg, base)
+    nudge_at = min(at + int(S * (cfg["nudge_ratio"] - 1)), max(at, int(0.85 * (st.get("window") or 200000))))
+    if is_due and ctx >= nudge_at and ctx - int(st.get("nudged_at") or 0) >= S // 4:
         st["nudged_at"] = ctx
         save_state(sid, st)
         emit({"hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext":
@@ -1248,7 +1273,7 @@ def cmd_later(cfg):
     st = load_state(sid) if sid else {}
     cfg = config(st)
     ctx = context_tokens(path) if path else 0
-    q = section_size(path, st, cfg) // 4 if path else 10000
+    q = limits(path, st, cfg)[2] if path else 10000
     st.update({"phase": "idle", "plan": [], "cut": None, "postponed_to": (ctx or 0) + q})
     save_state(sid, st)
     print(f"Tides: postponed. I'll ask again in about {ktok(q)} tokens.")
@@ -1259,18 +1284,23 @@ def cmd_status(cfg):
     st = load_state(sid) if sid else {}
     cfg = config(st)
     print(f"Tides {VERSION} · {'on' if cfg.get('enabled', True) else 'off'} · ceiling {ktok(cfg['ceiling'])} · "
+          f"section {ktok(cfg['section_tokens']) if cfg.get('section_tokens') else 'from the ceiling'} · "
           f"{cfg['sections']} sections · keep {cfg['keep_ratio']:.0%} of a section · wake: {cfg.get('wake')}")
     if path:
         is_due, ctx, base = due(path, st, cfg)      # learns the fixed overhead first
-        S = section_size(path, st, cfg)
+        S, C, _ = limits(path, st, cfg)
         T = read_tiers(path, None, S)
         need = S if st.get("curated_session") or st.get("curation") else 2 * S
+        at, why = next_tide(path, st, cfg, base)
         print(f"This conversation: curation {st.get('curation', 0)} so far · context ~{ktok(ctx)} · "
-              f"section ~{ktok(S)} (window {ktok(st.get('window') or 0)}, fixed overhead ~{ktok(st.get('overhead') or 0)}) · "
-              f"next curation at ~{ktok(base + need)}" + (" (due now)" if is_due else ""))
+              f"next curation at ~{ktok(at)}" + (" (due now)" if is_due else "")
+              + f", whichever comes first: {ktok(need)} new since {'the wake' if st.get('curation') or st.get('curated_session') else 'the start'}"
+              f" (~{ktok(base + need)}) or the ceiling (~{ktok(C)})")
+        print(f"  section ~{ktok(S)} · window {ktok(st.get('window') or 0)}"
+              + ("" if cfg.get("section_tokens") else f" · fixed overhead ~{ktok(st.get('overhead') or 0)}"))
         print(f"  kept memories: {len(T['K'])} · messages-only: {len(T['M'])} · whole: "
               f"{len([r for r in T['NEW'] if r.get('type') in ('user', 'assistant')])} records")
-    print(f"Archive: {ARCHIVE}/   Settings: {CLI} set ceiling 400k | sections 4 | wake manual | off | on  (add --here for this conversation only)")
+    print(f"Archive: {ARCHIVE}/   Settings: {CLI} set ceiling 400k | section-size 100k | sections 4 | wake manual | off | on  (add --here for this conversation only)")
 
 
 def cmd_set(args):
@@ -1289,7 +1319,7 @@ def cmd_set(args):
         c["ceiling"] = parse_tokens(val)
     elif key == "sections" and val.isdigit():
         c["sections"] = max(3, int(val))
-    elif key == "section" and parse_tokens(val) is not None:
+    elif key in ("section-size", "section_size", "section") and parse_tokens(val) is not None:
         c["section_tokens"] = parse_tokens(val)
     elif key == "keep" and val:
         c["keep_ratio"] = float(val)
@@ -1300,7 +1330,7 @@ def cmd_set(args):
     elif key == "intro" and val:
         c["intro"] = val.lower() in ("1", "on", "true", "yes")
     else:
-        return print("usage: set ceiling 400k | sections 4 | section 60k (0 = from ceiling) | keep 0.1 | "
+        return print("usage: set ceiling 400k | section-size 100k (0 = from the ceiling) | sections 4 | keep 0.1 | "
                      "wake auto|window|manual | intro on|off | on | off   [--here = this conversation only]")
     if st is not None:
         st["settings"] = c

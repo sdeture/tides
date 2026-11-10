@@ -29,8 +29,9 @@ Every so often (about every 30k tokens by default), Claude pauses for a minute t
 |---|---|
 | `/tides` | how this conversation's memory is laid out, and the settings |
 | `/tides now` | curate now |
-| `/tides set ceiling 400k` | the most context Claude lives in (default 120k; capped at 80% of the window) |
-| `/tides set sections 4` | how many sections fit under the ceiling (default 3, the minimum; more cost more, see below) |
+| `/tides set ceiling 400k` | the most context Claude lives in: a curation comes when the context reaches it (default 120k; capped at 80% of the window) |
+| `/tides set section-size 100k` | …or after this much new context, if that comes first (default: worked out from the ceiling, see below) |
+| `/tides set sections 4` | how many sections Claude's memory is kept in (default 3, the minimum; more cost more, see below) |
 | `/tides set … --here` | change it for this conversation only |
 | `/tides off` · `/tides on` | turn Tides off or on |
 
@@ -55,10 +56,10 @@ Other tools for long sessions summarize the old part of the conversation automat
 
 Tides is a Claude Code plugin: four small hooks and one Python file (plus a tiny launcher), with no dependencies and no network access.
 
-- **When.** After each reply, Tides reads the token count Claude Code already records. When a new section's worth has accumulated, it asks Claude to curate. Curation happens between turns, never while you're mid-message. If Claude is in the middle of something, it can finish first or postpone.
+- **When.** After each reply, Tides reads the token count Claude Code already records. When a section's worth of new context has accumulated, or the context reaches the ceiling, whichever comes first, it asks Claude to curate (never sooner than a quarter section after the last one). Curation happens between turns, never while you're mid-message. If Claude is in the middle of something, it can finish first or postpone.
 - **Choosing.** Older messages carry small archive numbers like `⟦m12⟧`, so Claude picks what to keep with one short command (`keep m3 m7:300 m12-m15`) without re-reading anything. The keep budget is 10% of a section.
 - **Waking.** Tides writes the new transcript beside the old one, checks its structure, archives the old one (gzip), and resumes the new one with a short wake-up message, so Claude speaks first. The original is never modified. If anything fails, nothing changes and the conversation continues as usual.
-- **Sizes.** Sections are the ceiling divided among the sections, after subtracting the fixed system prompt and tools. The defaults (120k, 3 sections, so about 30k each) fit the standard 200k window with room to spare, and sections shrink automatically when a large system prompt would otherwise let Claude Code's own compaction fire first.
+- **Sizes.** Unless you set a section size, it's the ceiling minus the fixed system prompt and tools, divided among the sections, so everything fits even if nothing shrinks. The defaults (120k, 3 sections, so about 30k each) fit the standard 200k window with room to spare, and sections shrink automatically when a large system prompt would otherwise let Claude Code's own compaction fire first. In practice older sections shrink a lot, because tool output is most of a working session. So with room in your plan, you can set a larger section size and let the ceiling catch the rest. The two also keep each other steady: with only a ceiling, a long whole section would leave little room for the next one, and sections would alternate long and short.
 - **Waking as itself.** The woken Claude starts with exactly the flags it was launched with (system prompt, permissions, model, Remote Control), minus the old session and any launch prompt. Settings that pick its model route travel through a private file that's deleted on read.
 
 *Designed by Skylar DeTure and Claude, 2026. MIT licensed.*
