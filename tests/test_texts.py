@@ -39,7 +39,7 @@ class R12Texts(unittest.TestCase):
         on = T.notice_text(path, C.deep(st), C.cfg_for(T))
         off = T.notice_text(path, C.deep(st), C.cfg_for(T, tool_calls=False))
         self.assertNotIn("Its tool calls, results and thinking are set aside", on)
-        self.assertIn("record of its tool calls", on)
+        self.assertRegex(on, r"record of its \d+ tool calls?")
         self.assertIn("Records are not carried into the oldest tier", on)
         self.assertIn("Its tool calls, results and thinking are set aside", off)
         self.assertIn("agents' reports, stay as messages", off)

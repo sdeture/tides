@@ -212,7 +212,7 @@ class R2Exact(unittest.TestCase):
         originals += [v for _, calls in EXPECTED for c in calls for _, v in c[3]]
         originals += [c[4] for _, calls in EXPECTED for c in calls if c[4] is not None]
         fixed = re.compile(r"⟪…\d+ characters cut…⟫|⟪result not kept: \d+ characters⟫|⟪no result recorded⟫|⟪empty⟫|"
-                           r"( ?⟪\d+ [\w ]+ blocks?⟫)+$")
+                           r"(?: ?⟪\d+ [\w ]+ blocks?⟫)+$")
         pieces = 0
         for d in D:
             for g in parse_record(C.text_of(d)):

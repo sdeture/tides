@@ -249,7 +249,10 @@ class Advisory(unittest.TestCase):
         self.assertIn("quiet sleeper", out)
         # and the due-nudge stays quiet
         nudge = k.post_tool("Read", {"file_path": "/x"}, {"type": "text"})
-        self.assertFalse(nudge, "no nudge while a task runs")
+        told = (nudge.get("hookSpecificOutput") or {}).get("additionalContext", "") if isinstance(nudge, dict) else ""
+        self.assertNotIn("At your next natural pause", told, "no nudge to begin while a task runs")
+        self.assertIn("waits while", told, "only the one-time word that the tide is waiting")
+        self.assertFalse(k.post_tool("Read", {"file_path": "/y"}, {"type": "text"}), "then quiet")
 
     def test_r11_nudge_speaks_when_nothing_runs(self):
         k = Case("nudge_free")
