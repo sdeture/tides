@@ -28,7 +28,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-VERSION = "0.3.0"
+VERSION = "0.3.1"
 HOME = Path.home()
 DATA = Path(os.environ.get("TIDES_HOME", str(HOME / ".claude" / "tides")))
 STATES = DATA / "sessions"
@@ -836,7 +836,7 @@ def wake(sid, cwd, cfg, text, inp=None, old_path=None):
     load = f"[ -f {shlex.quote(str(envf))} ] && . {shlex.quote(str(envf))}; rm -f {shlex.quote(str(envf))}; " if envf else ""
     inner = f"cd {shlex.quote(cwd)} && {{ {load}TIDES_WAKE=1 {launch}; }}"
     cmd = "/bin/sh -c " + shlex.quote(inner)
-    manual = f"claude --resume {sid} " + shlex.quote("🌅 awake")
+    manual = f"cd {shlex.quote(cwd)} && claude --resume {sid} " + shlex.quote("🌅 awake")
     mode = cfg.get("wake", "auto")
     term = os.environ.get("TERM_PROGRAM", "")
     entry = os.environ.get("CLAUDE_CODE_ENTRYPOINT", "cli")
@@ -1084,6 +1084,26 @@ def emit(obj):
         sys.stdout.write(json.dumps(obj, ensure_ascii=False))
 
 
+def session_home(path, cwd):
+    """The directory this conversation belongs to: the one whose name Claude Code turned into the
+    transcript's project folder. The hook's cwd follows the shell, which may have cd'd elsewhere, and
+    `claude --resume` only finds a session from its own project directory."""
+    want = Path(path).parent.name
+    slug = lambda d: re.sub(r"[^A-Za-z0-9]", "-", str(d))
+    c = Path(cwd)
+    for d in (c, *c.parents):
+        if slug(d) == want:
+            return str(d)
+    try:
+        for r in read_records(path):
+            d = r.get("cwd")
+            if d and slug(d) == want and Path(d).is_dir():
+                return d
+    except Exception:
+        pass
+    return cwd
+
+
 def hook_stop(inp, cfg):
     sid, cwd = inp.get("session_id"), inp.get("cwd") or os.getcwd()
     path = find_transcript(sid, inp.get("transcript_path"))
@@ -1108,7 +1128,7 @@ def hook_stop(inp, cfg):
                 cancel_curation(sid, load_state(sid), "build failed")
                 return emit({"systemMessage": f"Tides couldn't build the new transcript ({e}). Nothing changed; "
                                               f"this conversation continues as usual."})
-            return emit({"systemMessage": wake(new_sid, cwd, cfg, load_state(new_sid).get("wake_text", ""), inp,
+            return emit({"systemMessage": wake(new_sid, session_home(path, cwd), cfg, load_state(new_sid).get("wake_text", ""), inp,
                                                old_path=path)})
         if not st.get("reminded") and not inp.get("stop_hook_active"):
             st["reminded"] = True
@@ -1183,6 +1203,7 @@ def hook_prompt(inp, cfg):
                          "(Tides: the person chose to keep talking in this pre-curation window.)"}})
         return emit({"decision": "block", "reason":
                      f"This conversation continues in its curated transcript. To open it: "
+                     f"cd {shlex.quote(session_home(st.get('path') or '', inp.get('cwd') or os.getcwd()))} && "
                      f"claude --resume {st['superseded_by']}   ·   To keep talking here instead, type: stay here"})
     if st.get("phase") == "curating":
         cancel_curation(sid, st, "the person spoke mid-curation")

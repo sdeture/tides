@@ -7,7 +7,7 @@
     {
       "name": "tides",
       "description": "Instead of compaction, Claude curates its own working memory every so often and keeps going in the same conversation.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "source": "./",
       "strict": false
     }
