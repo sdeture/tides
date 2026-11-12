@@ -615,6 +615,121 @@ class GraderMutants(unittest.TestCase):
         self.assertEqual(st["window"], 1000000)
 
 
+class LiveFindings(unittest.TestCase):
+    """Found by the live run of tests/live/guard_live.py."""
+
+    def test_begin_finds_the_transcript_under_claude_config_dir(self):
+        cfgdir = C.TMP / "cfg_find"
+        proj = cfgdir / "projects" / "-tmp-x"
+        proj.mkdir(parents=True, exist_ok=True)
+        sid = "99999999-9999-4999-8999-000000000001"
+        (proj / f"{sid}.jsonl").write_text("{}\n")
+        with env(CLAUDE_CONFIG_DIR=str(cfgdir)):
+            self.assertEqual(T.find_transcript(sid), proj / f"{sid}.jsonl")
+
+    def test_session_start_records_the_transcript_path(self):
+        sid = "99999999-9999-4999-8999-000000000002"
+        p = C.new_case_dir("live_start") / f"{sid}.jsonl"
+        p.write_text("{}\n")
+        run(T.hook_session_start, {"session_id": sid, "source": "startup", "transcript_path": str(p)}, T.config())
+        self.assertEqual(T.load_state(sid).get("path"), str(p))
+
+    def test_a_dropped_attachment_just_before_begin_does_not_orphan_the_dream(self):
+        """Claude Code 2.1.322 writes a prompt_snapshot attachment between the prompt and the first assistant
+        record; when `begin` is the turn's first call, that attachment is the cut. Tides drops it, so the dream
+        must hang from what it stood on, not from the dropped record."""
+        k = Case("live_snapshot_cut")
+        k.stop(tasks=[], last="ok")
+        T.save_state(k.sid, dict(k.st, phase="idle"))
+        snap = {"parentUuid": k.leaf(), "isSidechain": False, "type": "attachment",
+                "uuid": "3aaaaaaa-0000-4000-8000-000000000001", "timestamp": G.now_iso(), "sessionId": k.sid,
+                "attachment": {"type": "prompt_snapshot", "content": "system prompt text"}}
+        k.append([snap])
+        tid = "toolu_snapbegin01"
+        a = {"parentUuid": snap["uuid"], "isSidechain": False, "type": "assistant",
+             "uuid": "3aaaaaaa-0000-4000-8000-000000000002", "timestamp": G.now_iso(), "sessionId": k.sid,
+             "cwd": "/tmp/tides-fixture",
+             "message": {"id": "msg_snapbegin", "type": "message", "role": "assistant", "model": "claude-haiku-4-5",
+                         "content": [{"type": "tool_use", "id": tid, "name": "Bash",
+                                      "input": {"command": "sh /x/scripts/tides begin"}}],
+                         "stop_reason": "tool_use", "usage": {"input_tokens": 1, "cache_read_input_tokens": 114000,
+                                                              "output_tokens": 10}}}
+        k.append([a])
+        k.append([{"parentUuid": a["uuid"], "isSidechain": False, "type": "user",
+                   "uuid": "3aaaaaaa-0000-4000-8000-000000000003", "timestamp": G.now_iso(), "sessionId": k.sid,
+                   "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": tid,
+                                                            "content": k.begin()}]}}])
+        o1 = k.stop(last="#dream snapshot dream", tasks=[SUB])
+        k.say("#dream snapshot dream")
+        k.meta("Stop hook feedback:\n" + o1["reason"])
+        k.notify(SUB["id"], "toolu_a", result="SNAP-REPORT")
+        k.say("got it")
+        k.stop(last="got it", tasks=[])
+        st = k.st
+        self.assertTrue(st.get("superseded_by"), [l for l in (T.DATA / "tides.log").read_text().splitlines()
+                                                   if k.sid[:8] in l][-3:])
+        succ = Path(st["successor_path"])
+        self.assertEqual(T.validate(succ), [])
+        recs = C.records(succ)
+        self.assertFalse(any((r.get("attachment") or {}).get("type") == "prompt_snapshot" for r in recs))
+
+    def prompt(self, k, text):
+        return run(T.hook_prompt, {"session_id": k.sid, "transcript_path": str(k.path), "hook_event_name":
+                                   "UserPromptSubmit", "prompt": text, "cwd": "/tmp/tides-fixture"}, T.config())
+
+    def race_case(self, name):
+        """`begin`, then a background task's report delivered mid-turn as Claude Code 2.1.322 does it: a
+        queued_command attachment inside the curation turn, before the dream."""
+        k = Case(name)
+        k.stop(tasks=[], last="ok")
+        T.save_state(k.sid, dict(k.st, phase="idle"))
+        D7SecondBegin.bash(None, k, "sh /x/scripts/tides begin", k.begin())
+        note = (f"<task-notification>\n<task-id>{SHELL['id']}</task-id>\n<tool-use-id>toolu_launch01</tool-use-id>\n"
+                "<status>completed</status>\n<summary>done</summary>\n<result>RACE-REPORT-4417</result>\n"
+                "</task-notification>")
+        k.append([{"parentUuid": k.leaf(), "isSidechain": False, "type": "attachment",
+                   "uuid": "3bbbbbbb-0000-4000-8000-000000000001", "timestamp": G.now_iso(), "sessionId": k.sid,
+                   "attachment": {"type": "queued_command", "prompt": note, "commandMode": "task-notification",
+                                  "origin": {"kind": "task-notification", "producer": "session-task"}}}])
+        # as in the live file: the turn's next record hangs from the attachment
+        k.leaf = lambda: "3bbbbbbb-0000-4000-8000-000000000001"
+        return k, note
+
+    def test_a_task_report_mid_curation_does_not_cancel_it(self):
+        k, note = self.race_case("live_race_prompt")
+        self.prompt(k, note)
+        self.assertEqual(k.st.get("phase"), "curating", "a task's report is not the person speaking")
+        self.prompt(k, "[SYSTEM NOTIFICATION - NOT USER INPUT] This is an automated background task report.")
+        self.assertEqual(k.st.get("phase"), "curating")
+        self.prompt(k, "wait, one more thing")
+        self.assertNotEqual(k.st.get("phase"), "curating", "the person speaking still cancels")
+
+    def test_a_task_report_that_arrived_mid_curation_follows_the_dream(self):
+        k, note = self.race_case("live_race_carry")
+        k.say("#dream race dream")
+        k.stop(last="#dream race dream", tasks=[])
+        st = k.st
+        self.assertTrue(st.get("superseded_by"))
+        succ = Path(st["successor_path"])
+        self.assertEqual(T.validate(succ), [])
+        recs = C.records(succ)
+        dream = next(i for i, r in enumerate(recs) if (r.get("tides") or {}).get("tier") == "dream")
+        hits = [i for i, r in enumerate(recs) if "RACE-REPORT-4417" in C.text_of(r)]
+        self.assertEqual(len(hits), 1, "the report is carried once")
+        self.assertGreater(hits[0], dream)
+        self.assertEqual(recs[hits[0]].get("type"), "user")
+        self.assertIn("1 background task report", T.load_state(st["superseded_by"])["wake_text"])
+
+    def test_a_report_in_the_old_window_after_the_wake_is_not_blocked(self):
+        k, note = self.race_case("live_race_after")
+        k.say("#dream d")
+        k.stop(last="#dream d", tasks=[])
+        self.assertTrue(k.st.get("superseded_by"))
+        out = self.prompt(k, note)
+        self.assertFalse(isinstance(out, dict) and out.get("decision") == "block",
+                         "a task's report still reaches the window it was started in")
+
+
 class ValidateMore(unittest.TestCase):
     def setUp(self):
         import test_validate as V

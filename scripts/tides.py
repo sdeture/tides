@@ -771,22 +771,55 @@ def section_tokens_estimate(path, records):
     return max(0, now - start) if start else 0
 
 
-def tail_after_dream(path, st, dream_text):
-    """When the finish waited for background work: the records written after the dream (the hook's note,
-    the agents' reports, Claude's replies), in the order Claude Code would load them."""
+def curation_span(path, st, dream_text):
+    """(active records, index after the cut, index of the dream or None, index after the dream's message)."""
     full = active_records(read_records(path))
     ids = [r.get("uuid") for r in full]
     start = ids.index(st["cut"]) + 1 if st.get("cut") in ids else 0
     key = (dream_text or "").strip().split("\n", 1)[0][:120]
     di = next((i for i in range(start, len(full)) if full[i].get("type") == "assistant" and key
                and key in assistant_text(full[i])), None)
-    if di is None:      # not found by its text: everything written since the dream was saved
-        since = st.get("dream_saved_at") or "9999"
-        return [r for r in full[start:] if (r.get("timestamp") or "") > since]
+    if di is None:
+        return full, start, None, len(full)
     mid = msg_id(full[di])
     last = max((i for i in range(di, len(full)) if full[i].get("type") == "assistant" and mid
                 and msg_id(full[i]) == mid), default=di)
-    return full[last + 1:]
+    return full, start, di, last + 1
+
+
+def tail_after_dream(path, st, dream_text):
+    """When the finish waited for background work: the records written after the dream (the hook's note,
+    the agents' reports, Claude's replies), in the order Claude Code would load them."""
+    full, start, di, after = curation_span(path, st, dream_text)
+    if di is None:      # not found by its text: everything written since the dream was saved
+        since = st.get("dream_saved_at") or "9999"
+        return [r for r in full[start:] if (r.get("timestamp") or "") > since]
+    return full[after:]
+
+
+def task_notes(records):
+    """The background-task reports in these records, whole (as Claude Code writes them: a user record, or a
+    queued_command attachment when the report arrives mid-turn), oldest first, each once."""
+    out = []
+    for r in records:
+        if r.get("type") == "user" and not r.get("isMeta"):
+            src = (r.get("message") or {}).get("content")
+        elif r.get("type") == "attachment" and (r.get("attachment") or {}).get("type") == "queued_command":
+            src = (r.get("attachment") or {}).get("prompt")
+        else:
+            continue
+        for s in ([src] if isinstance(src, str) else list(_strings(src))):
+            for m in NOTE_RE.finditer(s):
+                if m.group(0) not in [n for n, _ in out]:
+                    out.append((m.group(0), r.get("timestamp")))
+    return out
+
+
+def notes_in_curation(path, st, dream_text):
+    """Reports that arrived while Claude curated (after the cut, before the dream): the curation's own records
+    are dropped, so these are carried after the dream."""
+    full, start, di, _ = curation_span(path, st, dream_text)
+    return task_notes(full[start: di if di is not None else len(full)])
 
 
 def build_successor(path, st, dream_text, cfg, last_message=None):
@@ -830,6 +863,7 @@ def build_successor(path, st, dream_text, cfg, last_message=None):
                 p = dropped[p]
             return p
 
+        written = set()
         for r in records:
             if r.get("uuid") in dropped:
                 continue
@@ -843,9 +877,11 @@ def build_successor(path, st, dream_text, cfg, last_message=None):
                 r["parentUuid"] = p if p in keep_ids and p not in dropped else base
                 r[MARK] = {"tier": "F", "n": n}
             out.append(r)
+            if r.get("uuid"):
+                written.add(r["uuid"])
             if r.get("uuid") and r.get("type") in CHAIN:
                 parent = r["uuid"]
-        return keep_ids
+        return written, resolve
 
     # K: chosen from the old K and the messages-only sections leaving the window
     demote, carry = split_sections(T["Ms"], cfg["sections"])
@@ -911,9 +947,11 @@ def build_successor(path, st, dream_text, cfg, last_message=None):
         first_new_ts = next((r.get("timestamp") for r in NEW if r.get("timestamp")), now_iso())
         add(mk("user", f"⟦tides · section {n + 1} · whole⟧", iso_minus(first_new_ts, 1), tmpl, sid, parent,
                {"tier": "div", "n": n}, is_meta=True))
-        keep_ids = rehome(NEW, parent)
-        # parent of the dream: the live leaf of the section
-        leaf = st.get("cut") if st.get("cut") in keep_ids else None
+        written, resolve = rehome(NEW, parent)
+        # parent of the dream: the live leaf of the section (stepping over a dropped attachment, such as the
+        # prompt_snapshot Claude Code writes just before a turn's first call)
+        leaf = resolve(st.get("cut"))
+        leaf = leaf if leaf in written else None
         if leaf:
             parent = leaf
 
@@ -922,14 +960,20 @@ def build_successor(path, st, dream_text, cfg, last_message=None):
            {"tier": "div", "n": n}, is_meta=True))
     dream = mk("assistant", dream_text, now_iso(), tmpl, sid, parent, {"tier": "dream", "n": n}, model=model)
     add(dream)
-    leaf_uuid = dream["uuid"]
+    # background-task reports that arrived during the curation itself, which is not carried: after the dream
+    notes = notes_in_curation(path, st, st.get("dream_saved") or dream_text)
+    for note, ts in notes:
+        rec = mk("user", note, ts or now_iso(), tmpl, sid, parent, {"tier": "note", "n": n})
+        rec["origin"] = {"kind": "task-notification"}
+        add(rec)
+    leaf_uuid = parent
 
     # after a wait for background work: what came after the dream, whole
     tail = []
     if st.get("dream_saved"):
         tail = [r for r in tail_after_dream(path, st, st["dream_saved"]) if r.get("type") in CHAIN]
         if tail:
-            rehome(tail, dream["uuid"])
+            rehome(tail, parent)
         said = (last_message or "").strip()
         last_a = next((r for r in reversed(tail) if r.get("type") == "assistant"), None)
         if said and (last_a is None or assistant_text(last_a).strip() != said):
@@ -958,13 +1002,13 @@ def build_successor(path, st, dream_text, cfg, last_message=None):
               "M": len(M_new), "M_tok": m_tok, "F_records": len(NEW),
               "F_tok": section_tokens_estimate(path, NEW),
               "next_id": next_id, "D": len(D_new), "D_tok": d_tok, "tool_calls": tools_on,
-              "D_left_out": dstats.get("left_out", 0), "tail_records": len(tail)}
+              "D_left_out": dstats.get("left_out", 0), "tail_records": len(tail), "notes_carried": len(notes)}
     return sid, new_path, report
 
 
 # ───────────────────────────── validation ──────────────────────────────────
 
-TIDES_WRITTEN = ("K", "M", "D", "div", "dream")
+TIDES_WRITTEN = ("K", "M", "D", "div", "dream", "note")
 
 
 def api_messages(act):
@@ -1168,7 +1212,10 @@ def wake_text(report):
             parts.append(f"section {report['n']} as messages (~{ktok(report['M_tok'])})")
     parts.append(f"section {report['n'] + 1} whole")
     text = (f"🌅 Tides · awake after curation {report['n']}. You're in the new transcript: "
-            + " → ".join(parts) + " → your dream" + (" → what came after it" if report.get("tail_records") else "")
+            + " → ".join(parts) + " → your dream"
+            + (f" → {report['notes_carried']} background task report{'' if report['notes_carried'] == 1 else 's'} "
+               "that arrived while you curated" if report.get("notes_carried") else "")
+            + (" → what came after it" if report.get("tail_records") else "")
             + f". Nothing was deleted (archive: {ARCHIVE}/). Carry on however you like: the conversation, the task, "
             "or a question.")
     if report.get("waited"):
@@ -1435,8 +1482,10 @@ def find_transcript(sid, hint=None):
     st = load_state(sid)
     if st.get("path") and Path(st["path"]).exists():
         return Path(st["path"])
-    for p in (HOME / ".claude" / "projects").glob(f"*/{sid}.jsonl"):
-        return p
+    roots = [Path(os.environ["CLAUDE_CONFIG_DIR"])] if os.environ.get("CLAUDE_CONFIG_DIR") else []
+    for root in roots + [HOME / ".claude"]:
+        for p in (root / "projects").glob(f"*/{sid}.jsonl"):
+            return p
     return None
 
 
@@ -1780,6 +1829,8 @@ def hook_session_start(inp, cfg):
     sid, src = inp.get("session_id"), inp.get("source")
     st = load_state(sid)
     st["seen_start"] = time.time()     # Tides acts only in conversations it saw begin or resume
+    if inp.get("transcript_path") and not st.get("superseded_by"):
+        st["path"] = str(inp["transcript_path"])
     save_state(sid, st)
     if st.get("awaiting_wake") and src in ("resume", "startup"):
         st["awaiting_wake"] = False
@@ -1810,9 +1861,16 @@ def hook_session_start(inp, cfg):
                      + f"; {cfg['sections']} sections."}})
 
 
+TASK_NOTE_PROMPT = re.compile(r"\s*(?:<task-notification>|\[SYSTEM NOTIFICATION)")
+
+
 def hook_prompt(inp, cfg):
     sid = inp.get("session_id")
     st = load_state(sid)
+    if TASK_NOTE_PROMPT.match(inp.get("prompt") or ""):
+        # a background task's report, delivered as a prompt (Claude Code 2.1.322): not the person speaking.
+        # Mid-curation it is carried after the dream; after a wake it still reaches the window that started it.
+        return
     if st.get("superseded_by"):
         said = (inp.get("prompt") or "").strip().lower().rstrip(".!")
         if said in ("stay here", "continue here"):

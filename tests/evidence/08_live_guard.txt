@@ -1,0 +1,225 @@
+Live guard check, Claude Code 2.1.322, Haiku, plugin from this repo via --plugin-dir, isolated CLAUDE_CONFIG_DIR, TIDES_HOME temp, one session at a time. tests/live/guard_live.py. 2026-11-12 15:26 PST.
+
+Run 1 of A (before fixes): tides begin printed "couldn't find this conversation's transcript" (find_transcript searched only ~/.claude/projects). Fixed: CLAUDE_CONFIG_DIR/projects first, and SessionStart stores transcript_path.
+Run 2 of A: waited for 1 task, then build failed: 'new transcript failed its check: root has a parent'; curation cancelled. Cause: the cut was a prompt_snapshot attachment (2.1.322 writes one before a turn's first assistant record), which Tides drops; the dream was parented to it. Fixed in build_successor (resolve through dropped attachments).
+
+## A (final): background sleep 45, dream written while it runs
+{
+ "scenario": "A",
+ "first_call_ok": true,
+ "secs": 53.8,
+ "err": "",
+ "state": {
+  "phase": "done",
+  "trigger": "begin",
+  "superseded_by": "6f6419c3-c661-4f0f-959d-93a93ef0d095",
+  "cut_pinned": true
+ },
+ "waited_on": [
+  "Sleep 45 seconds then print marker in background"
+ ],
+ "log": [
+  "76bcc93e dream saved; waiting for 1 background task(s)",
+  "76bcc93e dream saved; waiting for 1 background task(s)",
+  "76bcc93e \u2192 6f6419c3 {\"n\": 1, \"sid\": \"6f6419c3-c661-4f0f-959d-93a93ef0d095\", \"path\": \"/private/tmp/tides-live-A-47r_qapl/"
+ ],
+ "old_transcript": {
+  "records": 73,
+  "task_notification_at": [
+   [
+    56,
+    "user",
+    null
+   ],
+   [
+    57,
+    "api-request-blob",
+    null
+   ]
+  ],
+  "marker_at": [
+   [
+    39,
+    "user",
+    null
+   ],
+   [
+    52,
+    "assistant",
+    null
+   ],
+   [
+    63,
+    "user",
+    null
+   ],
+   [
+    67,
+    "assistant",
+    null
+   ]
+  ],
+  "dream_at": [
+   38,
+   67
+  ],
+  "notice_at": [
+   [
+    25,
+    "user",
+    null
+   ]
+  ],
+  "waiting_note_at": [
+   [
+    39,
+    "user",
+    null
+   ],
+   [
+    43,
+    "api-request-blob",
+    null
+   ]
+  ]
+ },
+ "successor": {
+  "records": 31,
+  "dream_at": 12,
+  "marker_at": [
+   [
+    13,
+    "user",
+    "F"
+   ],
+   [
+    21,
+    "assistant",
+    "F"
+   ],
+   [
+    26,
+    "user",
+    "F"
+   ],
+   [
+    28,
+    "assistant",
+    "F"
+   ]
+  ],
+  "marker_after_dream": true,
+  "task_notification_at": [
+   [
+    23,
+    "user",
+    "F"
+   ]
+  ],
+  "notification_after_dream": true,
+  "validate": "ok"
+ },
+ "wake_text_tail": " whole \u2192 your dream \u2192 what came after it. Nothing was deleted (archive: /private/tmp/tides-live-A-47r_qapl/home/archive/). Carry on however you like: the conversation, the task, or a question. (This curation waited for 1 background task to finish: shell \u201cSleep 45 seconds then print marker in background\u201d (`sleep 45; echo SHELL-DONE-7731`). Their reports are in the newest section, after your dream.)",
+ "base": "/private/tmp/tides-live-A-47r_qapl"
+}
+
+## B before the race fix: background sleep 5 ends during a foreground sleep 20, before the dream
+{
+ "scenario": "B",
+ "first_call_ok": true,
+ "secs": 27.3,
+ "err": "",
+ "state": {
+  "phase": "idle",
+  "trigger": "begin"
+ },
+ "waited_on": [],
+ "log": [
+  "79102f2d curation cancelled: the person spoke mid-curation"
+ ],
+ "old_transcript": {
+  "records": 49,
+  "task_notification_at": [
+   [
+    42,
+    "api-request-blob",
+    null
+   ]
+  ],
+  "marker_at": [],
+  "dream_at": [
+   45
+  ],
+  "notice_at": [
+   [
+    25,
+    "user",
+    null
+   ]
+  ],
+  "waiting_note_at": []
+ },
+ "base": "/private/tmp/tides-live-B-ymltnlht"
+}
+
+## B after the race fix
+{
+ "scenario": "B",
+ "first_call_ok": true,
+ "secs": 31.3,
+ "err": "",
+ "state": {
+  "phase": "done",
+  "trigger": "begin",
+  "superseded_by": "a6ff05ea-ca5a-4b2c-b444-6fffa8738a4f"
+ },
+ "waited_on": [],
+ "log": [
+  "153209a3 \u2192 a6ff05ea {\"n\": 1, \"sid\": \"a6ff05ea-ca5a-4b2c-b444-6fffa8738a4f\", \"path\": \"/private/tmp/tides-live-B-7a41ybru/"
+ ],
+ "old_transcript": {
+  "records": 52,
+  "task_notification_at": [
+   [
+    43,
+    "api-request-blob",
+    null
+   ]
+  ],
+  "marker_at": [
+   [
+    46,
+    "assistant",
+    null
+   ]
+  ],
+  "dream_at": [
+   46
+  ],
+  "notice_at": [
+   [
+    25,
+    "user",
+    null
+   ]
+  ],
+  "waiting_note_at": []
+ },
+ "successor": {
+  "records": 16,
+  "dream_at": 12,
+  "marker_at": [],
+  "marker_after_dream": false,
+  "task_notification_at": [
+   [
+    13,
+    "user",
+    "note"
+   ]
+  ],
+  "notification_after_dream": true,
+  "validate": "ok"
+ },
+ "wake_text_tail": "\ud83c\udf05 Tides \u00b7 awake after curation 1. You're in the new transcript: section 2 whole \u2192 your dream \u2192 1 background task report that arrived while you curated. Nothing was deleted (archive: /private/tmp/tides-live-B-7a41ybru/home/archive/). Carry on however you like: the conversation, the task, or a question.",
+ "base": "/private/tmp/tides-live-B-7a41ybru"
+}

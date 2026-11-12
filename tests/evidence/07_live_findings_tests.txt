@@ -1,0 +1,21 @@
+LiveFindings: the six tests written for what the live runs found, on the last commit's tides.py (d00d4d8) and then on the fix.
+
+## on d00d4d8
+Claude Code 2.1.322 writes a prompt_snapshot attachment between the prompt and the first assistant ... FAIL
+test_a_report_in_the_old_window_after_the_wake_is_not_blocked (test_fixround.LiveFindings.test_a_report_in_the_old_window_after_the_wake_is_not_blocked) ... FAIL
+test_a_task_report_mid_curation_does_not_cancel_it (test_fixround.LiveFindings.test_a_task_report_mid_curation_does_not_cancel_it) ... FAIL
+test_a_task_report_that_arrived_mid_curation_follows_the_dream (test_fixround.LiveFindings.test_a_task_report_that_arrived_mid_curation_follows_the_dream) ... FAIL
+test_begin_finds_the_transcript_under_claude_config_dir (test_fixround.LiveFindings.test_begin_finds_the_transcript_under_claude_config_dir) ... FAIL
+test_session_start_records_the_transcript_path (test_fixround.LiveFindings.test_session_start_records_the_transcript_path) ... FAIL
+Ran 6 tests in 0.081s
+FAILED (failures=6)
+
+## on the fix
+Claude Code 2.1.322 writes a prompt_snapshot attachment between the prompt and the first assistant ... ok
+test_a_report_in_the_old_window_after_the_wake_is_not_blocked (test_fixround.LiveFindings.test_a_report_in_the_old_window_after_the_wake_is_not_blocked) ... ok
+test_a_task_report_mid_curation_does_not_cancel_it (test_fixround.LiveFindings.test_a_task_report_mid_curation_does_not_cancel_it) ... ok
+test_a_task_report_that_arrived_mid_curation_follows_the_dream (test_fixround.LiveFindings.test_a_task_report_that_arrived_mid_curation_follows_the_dream) ... ok
+test_begin_finds_the_transcript_under_claude_config_dir (test_fixround.LiveFindings.test_begin_finds_the_transcript_under_claude_config_dir) ... ok
+test_session_start_records_the_transcript_path (test_fixround.LiveFindings.test_session_start_records_the_transcript_path) ... ok
+Ran 6 tests in 0.082s
+OK
