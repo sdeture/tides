@@ -1,0 +1,26 @@
+python3 tests/mutate.py   (2026-11-12; each line = one deliberate bug, and the tests that failed because of it)
+caught  finish gate removed (dream finishes while tasks run): 3 test(s), e.g. test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports, test_r11_never_forced_while_compaction_is_on, test_r11_the_tail_becomes_the_newest_section_next_time
+caught  internal task types not filtered: 1 test(s), e.g. test_r11_internal_tasks_do_not_hold_a_tide
+caught  nudge ignores running tasks: 1 test(s), e.g. test_r11_a_quiet_agent_45_minutes_in_still_counts
+caught  begin ignores running tasks: 5 test(s), e.g. test_r11_a_quiet_agent_45_minutes_in_still_counts, test_r11_background_bash_launch_counts_too, test_r11_begin_force_overrides_and_r15_wake_names_the_tasks
+caught  compaction always reported off (so a tide is always forceable): 1 test(s), e.g. test_r11_never_forced_while_compaction_is_on
+caught  deferred finish drops what came after the dream: 2 test(s), e.g. test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports, test_r11_the_tail_becomes_the_newest_section_next_time
+caught  wake text says nothing about tasks cut off: 2 test(s), e.g. test_r11_begin_force_overrides_and_r15_wake_names_the_tasks, test_r15_forced_at_ninety_percent_when_compaction_is_off
+caught  budget ignored: 4 test(s), e.g. test_r4_at_budget_nothing_dropped_one_under_something_is, test_r4_over_budget_order_results_then_inputs_then_lines, test_r4_results_go_oldest_first
+caught  share not clamped at 10%: 1 test(s), e.g. test_r4_share_never_above_ten_percent
+caught  budget cuts newest first: 3 test(s), e.g. test_r4_at_budget_nothing_dropped_one_under_something_is, test_r4_over_budget_order_results_then_inputs_then_lines, test_r4_results_go_oldest_first
+caught  results never left out (skip straight to inputs): 3 test(s), e.g. test_r4_at_budget_nothing_dropped_one_under_something_is, test_r4_over_budget_order_results_then_inputs_then_lines, test_r4_results_go_oldest_first
+caught  inputs never shortened: 1 test(s), e.g. test_r4_over_budget_order_results_then_inputs_then_lines
+caught  no slack before cutting: 1 test(s), e.g. test_r2_a_field_barely_over_its_cap_stays_whole
+caught  carried sections lose their records: 1 test(s), e.g. test_r1b_digests_carried_byte_identical_then_dropped
+caught  records written as non-meta user turns: 22 test(s), e.g. test_mut_digest_not_meta_or_unframed, test_mut_duplicate_tool_use_id, test_mut_first_message_assistant
+caught  validate: unanswered calls not checked: 1 test(s), e.g. test_mut_unanswered_tool_use
+caught  validate: orphan results not checked: 1 test(s), e.g. test_mut_orphan_result
+caught  validate: text-before-results not checked: 1 test(s), e.g. test_mut_text_before_result
+caught  validate: duplicate ids not checked: 1 test(s), e.g. test_mut_duplicate_tool_use_id
+caught  validate: last-assistant tool call not checked: 1 test(s), e.g. test_mut_last_assistant_tool_call_even_when_answered
+caught  validate: tool blocks in Tides records not checked: 1 test(s), e.g. test_mut_tool_block_in_a_record_tides_wrote
+caught  validate: thinking in Tides records not checked: 1 test(s), e.g. test_mut_thinking_in_a_record_tides_wrote
+caught  validate: record framing not checked: 1 test(s), e.g. test_mut_digest_not_meta_or_unframed
+caught  validate: first message not checked: 1 test(s), e.g. test_mut_first_message_assistant
+missed: 0

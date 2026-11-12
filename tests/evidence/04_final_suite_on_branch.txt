@@ -2,6 +2,7 @@ test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations (test_di
 test_r1_agent_prompt_and_skill_args_are_not_shown (test_digests.R1Digests.test_r1_agent_prompt_and_skill_args_are_not_shown) ... ok
 test_r1_one_record_per_turn_with_every_field_in_order (test_digests.R1Digests.test_r1_one_record_per_turn_with_every_field_in_order) ... ok
 test_r1b_digests_carried_byte_identical_then_dropped (test_digests.R1bCarry.test_r1b_digests_carried_byte_identical_then_dropped) ... ok
+test_r2_a_field_barely_over_its_cap_stays_whole (test_digests.R2Exact.test_r2_a_field_barely_over_its_cap_stays_whole) ... ok
 test_r2_every_mark_is_exact_arithmetic (test_digests.R2Exact.test_r2_every_mark_is_exact_arithmetic) ... ok
 test_r2_no_character_outside_originals_and_constants (test_digests.R2Exact.test_r2_no_character_outside_originals_and_constants) ... ok
 test_r3_r9_kept_memories_never_hold_digests_and_candidates_match_off (test_digests.R3KeptMemories.test_r3_r9_kept_memories_never_hold_digests_and_candidates_match_off) ... ok
@@ -37,6 +38,7 @@ test_mut_digest_not_meta_or_unframed (test_validate.R7Mutations.test_mut_digest_
 test_mut_duplicate_tool_use_id (test_validate.R7Mutations.test_mut_duplicate_tool_use_id) ... ok
 test_mut_first_message_assistant (test_validate.R7Mutations.test_mut_first_message_assistant) ... ok
 test_mut_last_assistant_has_tool_use (test_validate.R7Mutations.test_mut_last_assistant_has_tool_use) ... ok
+test_mut_last_assistant_tool_call_even_when_answered (test_validate.R7Mutations.test_mut_last_assistant_tool_call_even_when_answered) ... ok
 test_mut_orphan_result (test_validate.R7Mutations.test_mut_orphan_result) ... ok
 test_mut_result_not_in_next_message (test_validate.R7Mutations.test_mut_result_not_in_next_message) ... ok
 test_mut_text_before_result (test_validate.R7Mutations.test_mut_text_before_result) ... ok
@@ -48,7 +50,7 @@ test_r7_every_fixture_successor_passes (test_validate.R7ValidatePasses.test_r7_e
 test_r7_raw_fixtures_pass_too (test_validate.R7ValidatePasses.test_r7_raw_fixtures_pass_too) ... ok
 
 ----------------------------------------------------------------------
-Ran 48 tests in 0.424s
+Ran 50 tests in 0.413s
 
 OK
 module under test: /Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/scripts/tides.py

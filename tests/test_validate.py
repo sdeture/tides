@@ -156,6 +156,24 @@ class R7Mutations(unittest.TestCase):
         dream["message"]["content"].append({"type": "tool_use", "id": "toolu_last", "name": "Bash", "input": {}})
         self.caught(recs, "last_tool_use")
 
+    def test_mut_last_assistant_tool_call_even_when_answered(self):
+        # a turn that ends on a tool result: answered, so only the last-assistant rule can catch it
+        recs = list(self.recs)
+        leaf_rec = next(r for r in recs if r.get("type") == "last-prompt")
+        tail = next(r for r in recs if r.get("uuid") == leaf_rec["leafUuid"])
+        base = {k: tail[k] for k in ("sessionId", "timestamp", "cwd") if k in tail}
+        a = dict(base, parentUuid=tail["uuid"], isSidechain=False, type="assistant",
+                 uuid="0000000d-0000-4000-8000-000000000004",
+                 message={"id": "msg_last", "role": "assistant", "model": "claude-haiku-4-5", "type": "message",
+                          "content": [{"type": "tool_use", "id": "toolu_end", "name": "Bash", "input": {"command": "ls"}}]})
+        u = dict(base, parentUuid=a["uuid"], isSidechain=False, type="user", uuid="0000000e-0000-4000-8000-000000000005",
+                 message={"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_end", "content": "x"}]})
+        leaf_rec["leafUuid"] = u["uuid"]
+        recs.insert(recs.index(leaf_rec), a)
+        recs.insert(recs.index(leaf_rec), u)
+        problems = self.caught(recs, "ends_on_tool_call")
+        self.assertEqual(problems, ["the last assistant message makes a tool call"])
+
     def test_mut_orphan_result(self):
         recs = list(self.recs)
         i = first_index(recs, is_result)

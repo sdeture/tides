@@ -185,6 +185,17 @@ class R2Exact(unittest.TestCase):
                         self.fail(f"{g['name']} {label}: shown text matches no original")
         self.assertGreaterEqual(marks, 5, "the long fields must have been cut, with marks")
 
+    def test_r2_a_field_barely_over_its_cap_stays_whole(self):
+        # cutting a field by less than the mark's own length would make it longer, not shorter
+        cap = 200
+        for n in (cap, cap + T.CUT_SLACK):
+            self.assertEqual(T.cut("x" * n, cap), "x" * n)
+        s = "a" * 100 + "b" * (cap + T.CUT_SLACK + 1 - 200) + "c" * 100
+        out = T.cut(s, cap)
+        self.assertNotEqual(out, s)
+        self.assertEqual(out, "a" * 100 + T.CUT_MARK.format(k=len(s) - cap) + "c" * 100)
+        self.assertLess(len(out), len(s))
+
     def test_r2_no_character_outside_originals_and_constants(self):
         path, _ = first_curation("r2b")
         self.assertTrue(C.digest_records(path))
