@@ -1,0 +1,371 @@
+test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations (test_digests.R10Legacy.test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations) ... FAIL
+test_r1_agent_prompt_and_skill_args_are_not_shown (test_digests.R1Digests.test_r1_agent_prompt_and_skill_args_are_not_shown) ... FAIL
+test_r1_one_record_per_turn_with_every_field_in_order (test_digests.R1Digests.test_r1_one_record_per_turn_with_every_field_in_order) ... FAIL
+test_r1b_digests_carried_byte_identical_then_dropped (test_digests.R1bCarry.test_r1b_digests_carried_byte_identical_then_dropped) ... FAIL
+test_r2_every_mark_is_exact_arithmetic (test_digests.R2Exact.test_r2_every_mark_is_exact_arithmetic) ... FAIL
+test_r2_no_character_outside_originals_and_constants (test_digests.R2Exact.test_r2_no_character_outside_originals_and_constants) ... FAIL
+test_r3_r9_kept_memories_never_hold_digests_and_candidates_match_off (test_digests.R3KeptMemories.test_r3_r9_kept_memories_never_hold_digests_and_candidates_match_off) ... FAIL
+test_r4_at_budget_nothing_dropped_one_under_something_is (test_digests.R4Budget.test_r4_at_budget_nothing_dropped_one_under_something_is) ... ERROR
+test_r4_over_budget_order_results_then_inputs_then_lines (test_digests.R4Budget.test_r4_over_budget_order_results_then_inputs_then_lines) ... ERROR
+test_r4_results_go_oldest_first (test_digests.R4Budget.test_r4_results_go_oldest_first) ... ERROR
+test_r4_settings_set_and_shown (test_digests.R4Budget.test_r4_settings_set_and_shown) ... ERROR
+test_r4_share_never_above_ten_percent (test_digests.R4Budget.test_r4_share_never_above_ten_percent) ... FAIL
+test_r4_under_budget_nothing_dropped (test_digests.R4Budget.test_r4_under_budget_nothing_dropped) ... ERROR
+test_r6_first_curation_dense_and_chatty (test_digests.R6Off.test_r6_first_curation_dense_and_chatty) ... FAIL
+test_r6_later_curation_with_keeps_and_carry (test_digests.R6Off.test_r6_later_curation_with_keeps_and_carry) ... FAIL
+test_r6_only_the_divider_differs (test_digests.R6Off.test_r6_only_the_divider_differs) ... FAIL
+test_r8_digests_only_in_meta_user_records_with_the_frame (test_digests.R8Form.test_r8_digests_only_in_meta_user_records_with_the_frame) ... FAIL
+test_r11_a_quiet_agent_45_minutes_in_still_counts (test_guard.Advisory.test_r11_a_quiet_agent_45_minutes_in_still_counts) ... FAIL
+test_r11_background_bash_launch_counts_too (test_guard.Advisory.test_r11_background_bash_launch_counts_too) ... FAIL
+test_r11_launch_then_begin_then_completion (test_guard.Advisory.test_r11_launch_then_begin_then_completion) ... FAIL
+test_r11_nudge_speaks_when_nothing_runs (test_guard.Advisory.test_r11_nudge_speaks_when_nothing_runs) ... ok
+test_r11_older_claude_code_without_background_tasks_falls_back_to_the_file_scan (test_guard.Advisory.test_r11_older_claude_code_without_background_tasks_falls_back_to_the_file_scan) ... ok
+test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports (test_guard.FinishGate.test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports) ... FAIL
+test_r11_the_tail_becomes_the_newest_section_next_time (test_guard.FinishGate.test_r11_the_tail_becomes_the_newest_section_next_time) ... ERROR
+test_r11_begin_force_overrides_and_r15_wake_names_the_tasks (test_guard.Force.test_r11_begin_force_overrides_and_r15_wake_names_the_tasks) ... FAIL
+test_r11_never_forced_while_compaction_is_on (test_guard.Force.test_r11_never_forced_while_compaction_is_on) ... FAIL
+test_r11_start_gate_forced_at_ninety_percent_names_tasks (test_guard.Force.test_r11_start_gate_forced_at_ninety_percent_names_tasks) ... FAIL
+test_r15_forced_at_ninety_percent_when_compaction_is_off (test_guard.Force.test_r15_forced_at_ninety_percent_when_compaction_is_off) ... FAIL
+test_r11_internal_tasks_do_not_hold_a_tide (test_guard.StartGate.test_r11_internal_tasks_do_not_hold_a_tide) ... FAIL
+test_r11_nothing_running_starts_as_before (test_guard.StartGate.test_r11_nothing_running_starts_as_before) ... ok
+test_r11_stop_does_not_start_a_tide_while_a_task_runs (test_guard.StartGate.test_r11_stop_does_not_start_a_tide_while_a_task_runs) ... ok
+test_mut_digest_not_meta_or_unframed (test_validate.R7Mutations.test_mut_digest_not_meta_or_unframed) ... ERROR
+test_mut_duplicate_tool_use_id (test_validate.R7Mutations.test_mut_duplicate_tool_use_id) ... FAIL
+test_mut_first_message_assistant (test_validate.R7Mutations.test_mut_first_message_assistant) ... ok
+test_mut_last_assistant_has_tool_use (test_validate.R7Mutations.test_mut_last_assistant_has_tool_use) ... ok
+test_mut_orphan_result (test_validate.R7Mutations.test_mut_orphan_result) ... ok
+test_mut_result_not_in_next_message (test_validate.R7Mutations.test_mut_result_not_in_next_message) ... FAIL
+test_mut_text_before_result (test_validate.R7Mutations.test_mut_text_before_result) ... FAIL
+test_mut_thinking_in_a_digest_record (test_validate.R7Mutations.test_mut_thinking_in_a_digest_record) ... ERROR
+test_mut_thinking_in_a_record_tides_wrote (test_validate.R7Mutations.test_mut_thinking_in_a_record_tides_wrote) ... FAIL
+test_mut_tool_block_in_a_record_tides_wrote (test_validate.R7Mutations.test_mut_tool_block_in_a_record_tides_wrote) ... FAIL
+test_mut_unanswered_tool_use (test_validate.R7Mutations.test_mut_unanswered_tool_use) ... ok
+test_r7_every_fixture_successor_passes (test_validate.R7ValidatePasses.test_r7_every_fixture_successor_passes) ... ok
+test_r7_raw_fixtures_pass_too (test_validate.R7ValidatePasses.test_r7_raw_fixtures_pass_too) ... ok
+
+======================================================================
+ERROR: test_r4_at_budget_nothing_dropped_one_under_something_is (test_digests.R4Budget.test_r4_at_budget_nothing_dropped_one_under_something_is)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 262, in test_r4_at_budget_nothing_dropped_one_under_something_is
+    _, full = self.full_cost()
+              ^^^^^^^^^^^^^^^^
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 253, in full_cost
+    _, D, div, cost = _budget_run("r4_full", 0.10, section=200000)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 247, in _budget_run
+    div = next(r for r in C.records(path) if C.tier(r) == "div" and "messages only" in C.text_of(r))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+======================================================================
+ERROR: test_r4_over_budget_order_results_then_inputs_then_lines (test_digests.R4Budget.test_r4_over_budget_order_results_then_inputs_then_lines)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 275, in test_r4_over_budget_order_results_then_inputs_then_lines
+    Dfull, full = self.full_cost()
+                  ^^^^^^^^^^^^^^^^
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 253, in full_cost
+    _, D, div, cost = _budget_run("r4_full", 0.10, section=200000)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 247, in _budget_run
+    div = next(r for r in C.records(path) if C.tier(r) == "div" and "messages only" in C.text_of(r))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+======================================================================
+ERROR: test_r4_results_go_oldest_first (test_digests.R4Budget.test_r4_results_go_oldest_first)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 302, in test_r4_results_go_oldest_first
+    Dfull, full = self.full_cost()
+                  ^^^^^^^^^^^^^^^^
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 253, in full_cost
+    _, D, div, cost = _budget_run("r4_full", 0.10, section=200000)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 247, in _budget_run
+    div = next(r for r in C.records(path) if C.tier(r) == "div" and "messages only" in C.text_of(r))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+======================================================================
+ERROR: test_r4_settings_set_and_shown (test_digests.R4Budget.test_r4_settings_set_and_shown)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 337, in test_r4_settings_set_and_shown
+    self.assertIs(c["tool_calls"], False)
+                  ~^^^^^^^^^^^^^^
+KeyError: 'tool_calls'
+
+======================================================================
+ERROR: test_r4_under_budget_nothing_dropped (test_digests.R4Budget.test_r4_under_budget_nothing_dropped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 257, in test_r4_under_budget_nothing_dropped
+    _, D, div, cost = _budget_run("r4_under", 0.10, section=200000)
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 247, in _budget_run
+    div = next(r for r in C.records(path) if C.tier(r) == "div" and "messages only" in C.text_of(r))
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+======================================================================
+ERROR: test_r11_the_tail_becomes_the_newest_section_next_time (test_guard.FinishGate.test_r11_the_tail_becomes_the_newest_section_next_time)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 195, in test_r11_the_tail_becomes_the_newest_section_next_time
+    k.meta("Stop hook feedback:\n" + out["reason"])
+                                     ~~~^^^^^^^^^^
+KeyError: 'reason'
+
+======================================================================
+ERROR: test_mut_digest_not_meta_or_unframed (test_validate.R7Mutations.test_mut_digest_not_meta_or_unframed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 178, in test_mut_digest_not_meta_or_unframed
+    d = next(r for r in recs if C.tier(r) == "D")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+======================================================================
+ERROR: test_mut_thinking_in_a_digest_record (test_validate.R7Mutations.test_mut_thinking_in_a_digest_record)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 148, in test_mut_thinking_in_a_digest_record
+    d = next(r for r in recs if C.tier(r) == "D")
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+StopIteration
+
+======================================================================
+FAIL: test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations (test_digests.R10Legacy.test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 473, in test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations
+    self.assertTrue(s3[3]["D"] and s4[4]["D"], "sections built by the new code have digests")
+AssertionError: [] is not true : sections built by the new code have digests
+
+======================================================================
+FAIL: test_r1_agent_prompt_and_skill_args_are_not_shown (test_digests.R1Digests.test_r1_agent_prompt_and_skill_args_are_not_shown)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 148, in test_r1_agent_prompt_and_skill_args_are_not_shown
+    self.assertIn("• Agent (ok) · Review the parser", text)
+AssertionError: '• Agent (ok) · Review the parser' not found in ''
+
+======================================================================
+FAIL: test_r1_one_record_per_turn_with_every_field_in_order (test_digests.R1Digests.test_r1_one_record_per_turn_with_every_field_in_order)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 115, in test_r1_one_record_per_turn_with_every_field_in_order
+    self.assertEqual(len(D), len(EXPECTED), "one record per assistant turn that made tool calls")
+AssertionError: 0 != 8 : one record per assistant turn that made tool calls
+
+======================================================================
+FAIL: test_r1b_digests_carried_byte_identical_then_dropped (test_digests.R1bCarry.test_r1b_digests_carried_byte_identical_then_dropped)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 220, in test_r1b_digests_carried_byte_identical_then_dropped
+    self.assertTrue(d1, "section 1 has digests")
+AssertionError: [] is not true : section 1 has digests
+
+======================================================================
+FAIL: test_r2_every_mark_is_exact_arithmetic (test_digests.R2Exact.test_r2_every_mark_is_exact_arithmetic)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 158, in test_r2_every_mark_is_exact_arithmetic
+    self.assertTrue(D, "the fixture must produce digests")
+AssertionError: [] is not true : the fixture must produce digests
+
+======================================================================
+FAIL: test_r2_no_character_outside_originals_and_constants (test_digests.R2Exact.test_r2_no_character_outside_originals_and_constants)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 187, in test_r2_no_character_outside_originals_and_constants
+    self.assertTrue(C.digest_records(path))
+AssertionError: [] is not true
+
+======================================================================
+FAIL: test_r3_r9_kept_memories_never_hold_digests_and_candidates_match_off (test_digests.R3KeptMemories.test_r3_r9_kept_memories_never_hold_digests_and_candidates_match_off)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 204, in test_r3_r9_kept_memories_never_hold_digests_and_candidates_match_off
+    self.assertTrue(any(C.tier(r) == "D" for r in C.records(on.path)), "the on lineage has digests to leak")
+AssertionError: False is not true : the on lineage has digests to leak
+
+======================================================================
+FAIL: test_r4_share_never_above_ten_percent (test_digests.R4Budget.test_r4_share_never_above_ten_percent)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 322, in test_r4_share_never_above_ten_percent
+    self.assertGreater(c10, 0)
+AssertionError: 0 not greater than 0
+
+======================================================================
+FAIL: test_r6_first_curation_dense_and_chatty (test_digests.R6Off.test_r6_first_curation_dense_and_chatty)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 409, in test_r6_first_curation_dense_and_chatty
+    self.check(path, C.state_for_stop_curation(c.sid, path), {})
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 401, in check
+    self.assertEqual(a, b)
+AssertionError: '{"cw[196 chars] 1 · task notifications (agents\' reports) kep[232 chars]22"}' != '{"cw[196 chars] 1 · ~366 tokens⟧", "role": "user"}, "parentUu[181 chars]22"}'
+Diff is 1176 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_r6_later_curation_with_keeps_and_carry (test_digests.R6Off.test_r6_later_curation_with_keeps_and_carry)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 418, in test_r6_later_curation_with_keeps_and_carry
+    self.check(L.path, st, dict(sections=4))
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 401, in check
+    self.assertEqual(a, b)
+AssertionError: '{"cw[196 chars] 2 · task notifications (agents\' reports) kep[233 chars]22"}' != '{"cw[196 chars] 2 · ~45 tokens⟧", "role": "user"}, "parentUui[182 chars]22"}'
+Diff is 1178 characters long. Set self.maxDiff to None to see it.
+
+======================================================================
+FAIL: test_r6_only_the_divider_differs (test_digests.R6Off.test_r6_only_the_divider_differs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 426, in test_r6_only_the_divider_differs
+    self.assertEqual(len(diff), 1)
+AssertionError: 0 != 1
+
+======================================================================
+FAIL: test_r8_digests_only_in_meta_user_records_with_the_frame (test_digests.R8Form.test_r8_digests_only_in_meta_user_records_with_the_frame)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_digests.py", line 450, in test_r8_digests_only_in_meta_user_records_with_the_frame
+    self.assertIn("quoted record", div)
+AssertionError: 'quoted record' not found in '⟦tides · section 1 · messages only · tool calls, results and thinking set aside at curation 1 · ~366 tokens⟧'
+
+======================================================================
+FAIL: test_r11_a_quiet_agent_45_minutes_in_still_counts (test_guard.Advisory.test_r11_a_quiet_agent_45_minutes_in_still_counts)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 248, in test_r11_a_quiet_agent_45_minutes_in_still_counts
+    self.assertIn("not starting", out)
+AssertionError: 'not starting' not found in '🌙 Tides · curation 1. Your context is ~113k tokens. This happens every ~20k new tokens, or sooner if the context reaches 150k, and afterwards you wake up in the same conversation with your recent work in place.\n\n1. Nothing to choose this time: there is no oldest tier yet.\n2. Section 1 keeps its messages. Its tool calls, results and thinking are set aside; if a tool result matters, carry its gist into your dream.\n3. Section 2, the newest, stays whole.\n\nThen write your dream: a message that starts with #dream. A note, a review, a poem, whatever you want to wake up next to. Everything between this notice and the dream is dropped, so think out loud or play if you like. Nothing is deleted: the full transcript is archived in <TMP>/tides_offline_3qadegp8/home/archive/. Mid-task? Finish the step first, or run `python3 /Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/baseline/tides_0_3_1.py later`.\n'
+
+======================================================================
+FAIL: test_r11_background_bash_launch_counts_too (test_guard.Advisory.test_r11_background_bash_launch_counts_too)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 231, in test_r11_background_bash_launch_counts_too
+    self.assertIn("long wait", k.begin())
+AssertionError: 'long wait' not found in '🌙 Tides · curation 1. Your context is ~113k tokens. This happens every ~20k new tokens, or sooner if the context reaches 150k, and afterwards you wake up in the same conversation with your recent work in place.\n\n1. Nothing to choose this time: there is no oldest tier yet.\n2. Section 1 keeps its messages. Its tool calls, results and thinking are set aside; if a tool result matters, carry its gist into your dream.\n3. Section 2, the newest, stays whole.\n\nThen write your dream: a message that starts with #dream. A note, a review, a poem, whatever you want to wake up next to. Everything between this notice and the dream is dropped, so think out loud or play if you like. Nothing is deleted: the full transcript is archived in <TMP>/tides_offline_3qadegp8/home/archive/. Mid-task? Finish the step first, or run `python3 /Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/baseline/tides_0_3_1.py later`.\n'
+
+======================================================================
+FAIL: test_r11_launch_then_begin_then_completion (test_guard.Advisory.test_r11_launch_then_begin_then_completion)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 217, in test_r11_launch_then_begin_then_completion
+    self.assertIn("not starting", out)
+AssertionError: 'not starting' not found in '🌙 Tides · curation 1. Your context is ~113k tokens. This happens every ~20k new tokens, or sooner if the context reaches 150k, and afterwards you wake up in the same conversation with your recent work in place.\n\n1. Nothing to choose this time: there is no oldest tier yet.\n2. Section 1 keeps its messages. Its tool calls, results and thinking are set aside; if a tool result matters, carry its gist into your dream.\n3. Section 2, the newest, stays whole.\n\nThen write your dream: a message that starts with #dream. A note, a review, a poem, whatever you want to wake up next to. Everything between this notice and the dream is dropped, so think out loud or play if you like. Nothing is deleted: the full transcript is archived in <TMP>/tides_offline_3qadegp8/home/archive/. Mid-task? Finish the step first, or run `python3 /Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/baseline/tides_0_3_1.py later`.\n'
+
+======================================================================
+FAIL: test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports (test_guard.FinishGate.test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 153, in test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports
+    self.assertFalse(st.get("superseded_by"), "no successor while tasks run")
+AssertionError: '1e685a06-06f7-496e-83b1-8c6b2e638ffb' is not false : no successor while tasks run
+
+======================================================================
+FAIL: test_r11_begin_force_overrides_and_r15_wake_names_the_tasks (test_guard.Force.test_r11_begin_force_overrides_and_r15_wake_names_the_tasks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 279, in test_r11_begin_force_overrides_and_r15_wake_names_the_tasks
+    self.assertIn("quiet sleeper", out, "the notice names what will be cut off")
+AssertionError: 'quiet sleeper' not found in '🌙 Tides · curation 1. Your context is ~113k tokens. This happens every ~20k new tokens, or sooner if the context reaches 150k, and afterwards you wake up in the same conversation with your recent work in place.\n\n1. Nothing to choose this time: there is no oldest tier yet.\n2. Section 1 keeps its messages. Its tool calls, results and thinking are set aside; if a tool result matters, carry its gist into your dream.\n3. Section 2, the newest, stays whole.\n\nThen write your dream: a message that starts with #dream. A note, a review, a poem, whatever you want to wake up next to. Everything between this notice and the dream is dropped, so think out loud or play if you like. Nothing is deleted: the full transcript is archived in <TMP>/tides_offline_3qadegp8/home/archive/. Mid-task? Finish the step first, or run `python3 /Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/baseline/tides_0_3_1.py later`.\n' : the notice names what will be cut off
+
+======================================================================
+FAIL: test_r11_never_forced_while_compaction_is_on (test_guard.Force.test_r11_never_forced_while_compaction_is_on)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 328, in test_r11_never_forced_while_compaction_is_on
+    self.assertFalse(k.st.get("superseded_by"))
+AssertionError: '004edc97-0e3e-432c-a5d9-4340c3d710e2' is not false
+
+======================================================================
+FAIL: test_r11_start_gate_forced_at_ninety_percent_names_tasks (test_guard.Force.test_r11_start_gate_forced_at_ninety_percent_names_tasks)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 344, in test_r11_start_gate_forced_at_ninety_percent_names_tasks
+    self.assertEqual(k.st.get("phase"), "curating")
+AssertionError: None != 'curating'
+
+======================================================================
+FAIL: test_r15_forced_at_ninety_percent_when_compaction_is_off (test_guard.Force.test_r15_forced_at_ninety_percent_when_compaction_is_off)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 312, in test_r15_forced_at_ninety_percent_when_compaction_is_off
+    self.check_handover(T.load_state(st["superseded_by"])["wake_text"], k)
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 291, in check_handover
+    self.assertIn("quiet sleeper", wake)
+AssertionError: 'quiet sleeper' not found in "🌅 Tides · awake after curation 1. You're in the new transcript: section 1 as messages (~366) → section 2 whole → your dream. Nothing was deleted (archive: <TMP>/tides_offline_3qadegp8/home/archive/). Carry on however you like: the conversation, the task, or a question."
+
+======================================================================
+FAIL: test_r11_internal_tasks_do_not_hold_a_tide (test_guard.StartGate.test_r11_internal_tasks_do_not_hold_a_tide)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_guard.py", line 137, in test_r11_internal_tasks_do_not_hold_a_tide
+    self.assertEqual(k.st.get("phase"), "curating", "Claude Code's own housekeeping must not block forever")
+AssertionError: None != 'curating' : Claude Code's own housekeeping must not block forever
+
+======================================================================
+FAIL: test_mut_duplicate_tool_use_id (test_validate.R7Mutations.test_mut_duplicate_tool_use_id)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 125, in test_mut_duplicate_tool_use_id
+    self.caught(recs, "dup_id")
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 73, in caught
+    self.assertTrue(problems, f"validate missed: {label}")
+AssertionError: [] is not true : validate missed: dup_id
+
+======================================================================
+FAIL: test_mut_result_not_in_next_message (test_validate.R7Mutations.test_mut_result_not_in_next_message)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 97, in test_mut_result_not_in_next_message
+    self.caught(recs, "late_result")
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 73, in caught
+    self.assertTrue(problems, f"validate missed: {label}")
+AssertionError: [] is not true : validate missed: late_result
+
+======================================================================
+FAIL: test_mut_text_before_result (test_validate.R7Mutations.test_mut_text_before_result)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 111, in test_mut_text_before_result
+    self.caught(recs, "text_first")
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 73, in caught
+    self.assertTrue(problems, f"validate missed: {label}")
+AssertionError: [] is not true : validate missed: text_first
+
+======================================================================
+FAIL: test_mut_thinking_in_a_record_tides_wrote (test_validate.R7Mutations.test_mut_thinking_in_a_record_tides_wrote)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 144, in test_mut_thinking_in_a_record_tides_wrote
+    self.caught(recs, "thinking_in_dream")
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 73, in caught
+    self.assertTrue(problems, f"validate missed: {label}")
+AssertionError: [] is not true : validate missed: thinking_in_dream
+
+======================================================================
+FAIL: test_mut_tool_block_in_a_record_tides_wrote (test_validate.R7Mutations.test_mut_tool_block_in_a_record_tides_wrote)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 137, in test_mut_tool_block_in_a_record_tides_wrote
+    problems = self.caught(recs, "tool_in_M")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/test_validate.py", line 73, in caught
+    self.assertTrue(problems, f"validate missed: {label}")
+AssertionError: [] is not true : validate missed: tool_in_M
+
+----------------------------------------------------------------------
+Ran 44 tests in 0.385s
+
+FAILED (failures=26, errors=8)
+module under test: /Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/tests/baseline/tides_0_3_1.py
+temp home: <TMP>/tides_offline_3qadegp8
