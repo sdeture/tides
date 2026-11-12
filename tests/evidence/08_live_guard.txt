@@ -223,3 +223,203 @@ Run 2 of A: waited for 1 task, then build failed: 'new transcript failed its che
  "wake_text_tail": "\ud83c\udf05 Tides \u00b7 awake after curation 1. You're in the new transcript: section 2 whole \u2192 your dream \u2192 1 background task report that arrived while you curated. Nothing was deleted (archive: /private/tmp/tides-live-B-7a41ybru/home/archive/). Carry on however you like: the conversation, the task, or a question.",
  "base": "/private/tmp/tides-live-B-7a41ybru"
 }
+
+## Rerun of A and B with the successor resumed (claude -p --resume <successor> with the wake text; TIDES_WAKE=1)
+### A
+{
+ "scenario": "A",
+ "first_call_ok": true,
+ "secs": 52.8,
+ "err": "",
+ "state": {
+  "phase": "done",
+  "trigger": "begin",
+  "superseded_by": "1822151f-e02c-41c0-b92d-3f8574207c26",
+  "cut_pinned": true
+ },
+ "waited_on": [
+  "Background sleep then echo completion marker"
+ ],
+ "log": [
+  "28d0518b dream saved; waiting for 1 background task(s)",
+  "28d0518b dream saved; waiting for 1 background task(s)",
+  "28d0518b \u2192 1822151f {\"n\": 1, \"sid\": \"1822151f-e02c-41c0-b92d-3f8574207c26\", \"path\": \"/private/tmp/tides-live-A-_a92m4pj/"
+ ],
+ "old_transcript": {
+  "records": 73,
+  "task_notification_at": [
+   [
+    56,
+    "user",
+    null
+   ],
+   [
+    57,
+    "api-request-blob",
+    null
+   ]
+  ],
+  "marker_at": [
+   [
+    39,
+    "user",
+    null
+   ],
+   [
+    52,
+    "assistant",
+    null
+   ],
+   [
+    61,
+    "user",
+    null
+   ],
+   [
+    67,
+    "assistant",
+    null
+   ]
+  ],
+  "dream_at": [
+   38
+  ],
+  "notice_at": [
+   [
+    25,
+    "user",
+    null
+   ]
+  ],
+  "waiting_note_at": [
+   [
+    39,
+    "user",
+    null
+   ],
+   [
+    43,
+    "api-request-blob",
+    null
+   ]
+  ]
+ },
+ "successor": {
+  "records": 31,
+  "dream_at": 12,
+  "marker_at": [
+   [
+    13,
+    "user",
+    "F"
+   ],
+   [
+    21,
+    "assistant",
+    "F"
+   ],
+   [
+    26,
+    "user",
+    "F"
+   ],
+   [
+    28,
+    "assistant",
+    "F"
+   ]
+  ],
+  "marker_after_dream": true,
+  "task_notification_at": [
+   [
+    23,
+    "user",
+    "F"
+   ]
+  ],
+  "notification_after_dream": true,
+  "validate": "ok"
+ },
+ "wake_text_tail": "on 2 whole \u2192 your dream \u2192 what came after it. Nothing was deleted (archive: /private/tmp/tides-live-A-_a92m4pj/home/archive/). Carry on however you like: the conversation, the task, or a question. (This curation waited for 1 background task to finish: shell \u201cBackground sleep then echo completion marker\u201d (`sleep 45; echo SHELL-DONE-7731`). Their reports are in the newest section, after your dream.)",
+ "resumed": {
+  "ok": true,
+  "secs": 2.6,
+  "reply": "Yes. The background task's completion report arrived after my dream, and it said the command completed with exit code 0 and output `SHELL-DONE-7731`.",
+  "err": ""
+ },
+ "base": "/private/tmp/tides-live-A-_a92m4pj"
+}
+
+### B
+{
+ "scenario": "B",
+ "first_call_ok": true,
+ "secs": 28.6,
+ "err": "",
+ "state": {
+  "phase": "done",
+  "trigger": "begin",
+  "superseded_by": "a47a06e4-7232-4a39-9943-587b806cfa03"
+ },
+ "waited_on": [],
+ "log": [
+  "51441426 \u2192 a47a06e4 {\"n\": 1, \"sid\": \"a47a06e4-7232-4a39-9943-587b806cfa03\", \"path\": \"/private/tmp/tides-live-B-eyj0fh4u/"
+ ],
+ "old_transcript": {
+  "records": 51,
+  "task_notification_at": [
+   [
+    42,
+    "api-request-blob",
+    null
+   ]
+  ],
+  "marker_at": [
+   [
+    45,
+    "assistant",
+    null
+   ]
+  ],
+  "dream_at": [
+   45
+  ],
+  "notice_at": [
+   [
+    25,
+    "user",
+    null
+   ]
+  ],
+  "waiting_note_at": []
+ },
+ "successor": {
+  "records": 16,
+  "dream_at": 12,
+  "marker_at": [
+   [
+    12,
+    "assistant",
+    "dream"
+   ]
+  ],
+  "marker_after_dream": false,
+  "task_notification_at": [
+   [
+    13,
+    "user",
+    "note"
+   ]
+  ],
+  "notification_after_dream": true,
+  "validate": "ok"
+ },
+ "wake_text_tail": "\ud83c\udf05 Tides \u00b7 awake after curation 1. You're in the new transcript: section 2 whole \u2192 your dream \u2192 1 background task report that arrived while you curated. Nothing was deleted (archive: /private/tmp/tides-live-B-eyj0fh4u/home/archive/). Carry on however you like: the conversation, the task, or a question.",
+ "resumed": {
+  "ok": true,
+  "secs": 2.3,
+  "reply": "Yes, a background task report reached me after the dream. It said \"Background command 'Background sleep then echo marker' completed (exit code 0)\". The summary did not include the RACE-DONE-4417 output, and I have not read the output file.",
+  "err": ""
+ },
+ "base": "/private/tmp/tides-live-B-eyj0fh4u"
+}

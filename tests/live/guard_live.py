@@ -7,6 +7,7 @@ plugin (--plugin-dir) and Tides state in a temp folder.
             wait, then finish after the shell reports, with the report in the newest section, after the dream.
   B. race:  the background shell (sleep 5) ends while Claude is still busy in the same turn (foreground sleep 20),
             before the dream. Where does its report land?
+  Both then resume the successor with the wake text and ask the woken Claude what the task reported.
 
     ANTHROPIC_API_KEY=... python3 tests/live/guard_live.py [A] [B]
 
@@ -118,8 +119,14 @@ def scenario(name, marker, shell, middle):
                             "notification_after_dream": bool(notes) and dream_i is not None
                                                         and all(i > dream_i for i, _, _ in notes),
                             "validate": tides.validate(Path(succ)) or "ok"}
-        out["wake_text_tail"] = (json.loads((home / "sessions" / f"{st['superseded_by']}.json").read_text())
-                                 .get("wake_text", ""))[-400:]
+        wake = json.loads((home / "sessions" / f"{st['superseded_by']}.json").read_text()).get("wake_text", "")
+        out["wake_text_tail"] = wake[-400:]
+        # resume the successor, as the wake would: the API must accept it, and the woken Claude must see the report
+        r = claude(str(cwd), dict(env, TIDES_WAKE="1"), wake + "\n\nOne line, no tools: did a background task's "
+                   "report reach you after your dream, and what did its output or summary say?",
+                   resume=st["superseded_by"])
+        out["resumed"] = {"ok": not r.get("is_error"), "secs": r["_secs"], "reply": (r.get("result") or "")[:300],
+                          "err": (r.get("stderr") or "")[:200]}
     out["base"] = str(base)
     return out
 
