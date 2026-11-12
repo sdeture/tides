@@ -373,6 +373,10 @@ DESC_CHARS = 80              # a call's `description` input
 SHORT_INPUT_CHARS = 60       # inputs, when a section's records are over budget
 CUT_SLACK = 24               # a field this little over its cap stays whole: cutting it would save nothing
 MAX_TOOL_SHARE = 0.10
+# Records are paths, commands, code and brackets: counted for real (2026-11-12, two archived sections, Haiku 5.5 and
+# Fable 5.2 alike) they took 1.7x what CHARS_PER_TOKEN estimates. Their budget and token figures use this instead,
+# so "5% of a section" is 5% in real tokens. (Set equal to CHARS_PER_TOKEN for the plain estimate.)
+RECORD_CHARS_PER_TOKEN = 2.1
 # the input that identifies a call, per tool; any other tool shows its whole input as compact JSON
 INPUT_FIELDS = {
     "Bash": (("command", "command"),),
@@ -383,6 +387,10 @@ INPUT_FIELDS = {
     "Agent": (("agent", "subagent_type"),), "Task": (("agent", "subagent_type"),),
     "Skill": (("skill", "skill"),),
 }
+
+
+def est_record_tokens(text):
+    return int(len(text) / RECORD_CHARS_PER_TOKEN) + 4
 
 
 def cut(s, cap):
@@ -453,7 +461,7 @@ def tool_settings(cfg):
 
 def build_digests(groups, cfg, section):
     """[(anchor unit, [(tool_use, tool_result)])] -> ([{after, ts, text}], stats). Over budget (a share of the
-    section, in est_tokens), results go first, oldest first; then inputs shrink to SHORT_INPUT_CHARS, oldest
+    section, in est_record_tokens), results go first, oldest first; then inputs shrink to SHORT_INPUT_CHARS, oldest
     first; then whole lines go, oldest first. A result is only left out if that makes its line shorter."""
     in_cap, res_cap, share = tool_settings(cfg)
     budget = int(section * share)
@@ -466,7 +474,7 @@ def build_digests(groups, cfg, section):
                      "calls": calls})
 
     def cost(rec):
-        return est_tokens(record_text(rec["calls"], res_cap)) if any(not c["dropped"] for c in rec["calls"]) else 0
+        return est_record_tokens(record_text(rec["calls"], res_cap)) if any(not c["dropped"] for c in rec["calls"]) else 0
 
     costs = [cost(r) for r in recs]
     total = sum(costs)
@@ -786,8 +794,8 @@ def build_successor(path, st, dream_text, cfg, last_message=None):
         secs.append((n, M_new, D_new, dict(tools="records", **dstats) if tools_on else None))
     d_tok = 0
     for sec, units, ds, info in secs:
-        tok = sum(est_tokens(u["text"]) for u in units) + sum(est_tokens(d["text"]) for d in ds)
-        d_tok += sum(est_tokens(d["text"]) for d in ds)
+        tok = sum(est_tokens(u["text"]) for u in units) + sum(est_record_tokens(d["text"]) for d in ds)
+        d_tok += sum(est_record_tokens(d["text"]) for d in ds)
         meta = {"tier": "div", "n": n}
         if info:
             meta.update(sec=sec, **info)

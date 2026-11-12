@@ -95,6 +95,9 @@ EXPECTED = [
 
 
 def first_curation(name, mod=None, **cfg_over):
+    """The first curation of tools_dense. The budget defaults to 10% here so that it does not bind: the
+    structure tests see every call. (R4's tests set the budget themselves.)"""
+    cfg_over.setdefault("tool_share", 0.10)
     mod = mod or T
     c = tools_dense("44444444-4444-4444-8444-" + format(abs(sum(map(ord, name))) % 10 ** 12, "012d"))
     c.stop_notice(1)
@@ -245,7 +248,7 @@ def _budget_run(name, share, section=20000, **over):
     path, rep = first_curation(name, tool_share=share, section_tokens=section, **over)
     D = C.digest_records(path)
     div = next(r for r in C.records(path) if C.tier(r) == "div" and "messages only" in C.text_of(r))
-    return path, D, C.text_of(div), sum(T.est_tokens(C.text_of(r)) for r in D)
+    return path, D, C.text_of(div), sum(getattr(T, "est_record_tokens", T.est_tokens)(C.text_of(r)) for r in D)
 
 
 class R4Budget(unittest.TestCase):
