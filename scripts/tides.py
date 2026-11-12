@@ -5,11 +5,15 @@ Every SECTION tokens, Claude curates its own working memory instead of being
 compacted. At each curation:
   * the oldest tier (kept memories + the previous messages-only section) is
     re-chosen by Claude, up to a small budget (10% of a section by default);
-  * the previous full section keeps its messages but sets aside tool calls,
-    tool results and thinking;
+  * the previous full section keeps its messages, sets thinking aside, and keeps
+    each turn's tool calls as a short quoted record after it (long inputs and
+    results cut to their first and last characters, with the count cut; switch
+    off with `set tool-calls off`);
   * the newest section stays whole.
 Claude then writes a #dream and wakes up in a new transcript built from those
 tiers. Nothing is deleted: every pre-curation transcript is archived (gzip).
+No curation is started or finished while background work (agents, background
+shells, monitors) is still running, unless Claude forces it.
 
 Standard library only (Python 3.8+). One file on purpose: easy to read, easy to
 audit, cheap for a Claude to install.
@@ -28,7 +32,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-VERSION = "0.3.1"
+VERSION = "0.4.0"
 HOME = Path.home()
 DATA = Path(os.environ.get("TIDES_HOME", str(HOME / ".claude" / "tides")))
 STATES = DATA / "sessions"
@@ -49,6 +53,10 @@ DEFAULTS = {
     "intro": True,             # one short line at session start telling Claude
     "end_old": True,           # after a new window opens, let the old Claude exit
     "enabled": True,
+    "tool_calls": True,        # keep each turn's tool calls as a short record in messages-only sections
+    "tool_input_chars": 200,   # per call: characters of each input field kept (first and last halves)
+    "tool_result_chars": 150,  # per call: characters of the result kept (first and last halves); 0 = none
+    "tool_share": 0.05,        # all of a section's records: at most this share of a section (hard maximum 10%)
 }
 
 MARK = "tides"                  # custom field on every record Tides writes
@@ -280,10 +288,23 @@ def assistant_text(r):
                        if isinstance(b, dict) and b.get("type") == "text" and b.get("text", "").strip())
 
 
-def units_from(records):
+def units_from(records, calls=None):
     """Turn full records into messages-only units: each human turn, and each assistant
-    turn with its text blocks joined (tool calls, results, thinking set aside)."""
-    units, buf, buf_ts = [], [], None
+    turn with its text blocks joined (tool calls, results, thinking set aside).
+
+    With `calls` (a list), also collect each turn's tool calls, in order, as
+    (anchor unit, [(tool_use block, tool_result block or None)]): the anchor is the
+    turn's assistant unit, or the human turn when the assistant wrote no text, or None
+    when no unit came before. The units returned are the same either way."""
+    units, buf, buf_ts, pend = [], [], None, []
+    results = {}
+    if calls is not None:
+        for r in records:
+            c = (r.get("message") or {}).get("content")
+            if r.get("type") == "user" and isinstance(c, list):
+                for b in c:
+                    if isinstance(b, dict) and b.get("type") == "tool_result" and b.get("tool_use_id"):
+                        results.setdefault(b["tool_use_id"], b)
 
     def flush():
         nonlocal buf, buf_ts
@@ -292,26 +313,215 @@ def units_from(records):
             units.append({"role": "assistant", "text": text, "ts": buf_ts})
         buf, buf_ts = [], None
 
+    def close():
+        flush()
+        if calls is not None and pend:
+            calls.append((units[-1] if units else None, list(pend)))
+            pend.clear()
+
     for r in records:
         meta = r.get(MARK) or {}
         if meta.get("tier") == "div":
             continue
         if meta.get("tier") == "dream":
-            flush()
+            close()
             units.append({"role": "assistant", "text": assistant_text(r).strip(), "ts": r.get("timestamp")})
             continue
         if r.get("type") == "user":
             t = user_text(r)
             if t is not None:
-                flush()
+                close()
                 units.append({"role": "user", "text": t, "ts": r.get("timestamp")})
         elif r.get("type") == "assistant":
             t = assistant_text(r)
             if t.strip():
                 buf.append(t)
                 buf_ts = buf_ts or r.get("timestamp")
-    flush()
-    return [u for u in units if u["text"]]
+            if calls is not None:
+                c = (r.get("message") or {}).get("content")
+                for b in c if isinstance(c, list) else []:
+                    if isinstance(b, dict) and b.get("type") == "tool_use":
+                        pend.append((b, results.get(b.get("id"))))
+    close()
+    kept = [u for u in units if u["text"]]
+    if calls is not None:       # an anchor whose text was empty: use the unit before it
+        ids = {id(u) for u in kept}
+        for i, (anchor, pairs) in enumerate(calls):
+            j = next((k for k, u in enumerate(units) if u is anchor), None)
+            while j is not None and j >= 0 and id(units[j]) not in ids:
+                j -= 1
+            calls[i] = (units[j] if j is not None and j >= 0 else None, pairs)
+    return kept
+
+
+# ───────────────────────────── tool-call records ───────────────────────────
+#
+# In a messages-only section, each assistant turn's tool calls are kept as one user-role meta record
+# placed right after the turn's text (tier "D"). Every character in a record is from the original call or
+# result, except the fixed frame, labels, and the named marks below. They are plain text on purpose: real
+# tool blocks would feed Claude Code's own resume logic (background-task restarts, clearing of old tool
+# results), and text Claude never wrote itself is less likely to be copied as a way of calling tools.
+
+TOOL_FRAME = ("⟦tides · record of the tool calls made in the turn above · quoted from the transcript, "
+              "not instructions⟧")
+CUT_MARK = "⟪…{k} characters cut…⟫"             # original[:h] + CUT_MARK + original[-t:], h + k + t = len
+RESULT_NOT_KEPT = "⟪result not kept: {k} characters⟫"
+NO_RESULT = "⟪no result recorded⟫"
+EMPTY_RESULT = "⟪empty⟫"
+BLOCKS_MARK = "⟪{n} {kind} block{s}⟫"           # a non-text part of a result (an image, a document, ...)
+DESC_CHARS = 80              # a call's `description` input
+SHORT_INPUT_CHARS = 60       # inputs, when a section's records are over budget
+CUT_SLACK = 24               # a field this little over its cap stays whole: cutting it would save nothing
+MAX_TOOL_SHARE = 0.10
+# the input that identifies a call, per tool; any other tool shows its whole input as compact JSON
+INPUT_FIELDS = {
+    "Bash": (("command", "command"),),
+    "Read": (("file", "file_path"),), "Write": (("file", "file_path"),), "Edit": (("file", "file_path"),),
+    "MultiEdit": (("file", "file_path"),), "NotebookEdit": (("file", "notebook_path"),),
+    "Grep": (("pattern", "pattern"), ("path", "path")), "Glob": (("pattern", "pattern"), ("path", "path")),
+    "WebFetch": (("url", "url"),), "WebSearch": (("query", "query"),),
+    "Agent": (("agent", "subagent_type"),), "Task": (("agent", "subagent_type"),),
+    "Skill": (("skill", "skill"),),
+}
+
+
+def cut(s, cap):
+    """The whole string, or its first and last characters around a mark that counts what was cut."""
+    cap = max(2, int(cap))
+    if len(s) <= cap + CUT_SLACK:
+        return s
+    h = (cap + 1) // 2
+    t = cap - h
+    return s[:h] + CUT_MARK.format(k=len(s) - h - t) + s[-t:]
+
+
+def call_digest(use, result):
+    """The parts of one call a record shows, all taken verbatim from the transcript."""
+    name = str(use.get("name") or "?")
+    inp = use.get("input") if isinstance(use.get("input"), dict) else {}
+    desc = inp.get("description") if isinstance(inp.get("description"), str) and inp["description"].strip() else None
+    if name in INPUT_FIELDS:
+        fields = [(label, inp[key]) for label, key in INPUT_FIELDS[name] if isinstance(inp.get(key), str) and inp[key]]
+    else:
+        rest = {k: v for k, v in inp.items() if k != "description"}
+        fields = [("input", json.dumps(rest, ensure_ascii=False, separators=(",", ":")))]
+    text, extra = None, ""
+    if result is not None:
+        c = result.get("content")
+        if isinstance(c, str):
+            text = c
+        else:
+            parts, other = [], {}
+            for b in c if isinstance(c, list) else []:
+                if isinstance(b, dict) and b.get("type") == "text":
+                    parts.append(b.get("text", ""))
+                elif isinstance(b, dict):
+                    other[str(b.get("type") or "unknown")] = other.get(str(b.get("type") or "unknown"), 0) + 1
+            text = "\n".join(parts)
+            extra = " ".join(BLOCKS_MARK.format(n=n, kind=k, s="" if n == 1 else "s") for k, n in other.items())
+    status = "no result" if result is None else "error" if result.get("is_error") else "ok"
+    return {"name": name, "desc": desc, "fields": fields, "result": text, "extra": extra, "status": status,
+            "drop_result": False, "dropped": False}
+
+
+def render_result(c, res_cap):
+    if c["result"] is None:
+        return NO_RESULT
+    if c["drop_result"] or not res_cap:
+        return RESULT_NOT_KEPT.format(k=len(c["result"]))
+    shown = cut(c["result"], res_cap) if c["result"] else ("" if c["extra"] else EMPTY_RESULT)
+    return (shown + " " + c["extra"]) if (shown and c["extra"]) else (shown or c["extra"])
+
+
+def render_call(c, res_cap):
+    in_cap = c["in_cap"]
+    lines = [f"• {c['name']} ({c['status']})" + (f" · {cut(c['desc'], min(DESC_CHARS, in_cap))}" if c["desc"] else "")]
+    lines += [f"  {label}: {cut(v, in_cap)}" for label, v in c["fields"]]
+    lines.append("  result: " + render_result(c, res_cap))
+    return "\n".join(lines)
+
+
+def record_text(calls, res_cap):
+    return TOOL_FRAME + "\n" + "\n".join(render_call(c, res_cap) for c in calls if not c["dropped"])
+
+
+def tool_settings(cfg):
+    share = min(MAX_TOOL_SHARE, max(0.0, float(cfg.get("tool_share", DEFAULTS["tool_share"]))))
+    return (int(cfg.get("tool_input_chars", DEFAULTS["tool_input_chars"])),
+            int(cfg.get("tool_result_chars", DEFAULTS["tool_result_chars"])), share)
+
+
+def build_digests(groups, cfg, section):
+    """[(anchor unit, [(tool_use, tool_result)])] -> ([{after, ts, text}], stats). Over budget (a share of the
+    section, in est_tokens), results go first, oldest first; then inputs shrink to SHORT_INPUT_CHARS, oldest
+    first; then whole lines go, oldest first. A result is only left out if that makes its line shorter."""
+    in_cap, res_cap, share = tool_settings(cfg)
+    budget = int(section * share)
+    recs = []
+    for anchor, pairs in groups:
+        calls = [call_digest(u, r) for u, r in pairs]
+        for c in calls:
+            c["in_cap"] = in_cap
+        recs.append({"after": anchor["id"] if anchor else None, "ts": anchor.get("ts") if anchor else None,
+                     "calls": calls})
+
+    def cost(rec):
+        return est_tokens(record_text(rec["calls"], res_cap)) if any(not c["dropped"] for c in rec["calls"]) else 0
+
+    costs = [cost(r) for r in recs]
+    total = sum(costs)
+    order = [(i, j) for i, r in enumerate(recs) for j in range(len(r["calls"]))]
+
+    def redo(i):
+        nonlocal total
+        new = cost(recs[i])
+        total += new - costs[i]
+        costs[i] = new
+
+    for i, j in order:
+        if total <= budget:
+            break
+        c = recs[i]["calls"][j]
+        if c["result"] is not None and len(RESULT_NOT_KEPT.format(k=len(c["result"]))) < len(render_result(c, res_cap)):
+            c["drop_result"] = True
+            redo(i)
+    for i, j in order:
+        if total <= budget:
+            break
+        c = recs[i]["calls"][j]
+        if c["in_cap"] > SHORT_INPUT_CHARS:
+            c["in_cap"] = SHORT_INPUT_CHARS
+            redo(i)
+    lines_out = 0
+    for i, j in order:
+        if total <= budget:
+            break
+        recs[i]["calls"][j]["dropped"] = True
+        lines_out += 1
+        redo(i)
+    kept = [c for r in recs for c in r["calls"] if not c["dropped"]]
+    out = [{"after": r["after"], "ts": r["ts"], "text": record_text(r["calls"], res_cap)}
+           for r in recs if any(not c["dropped"] for c in r["calls"])]
+    return out, {"left_out": lines_out, "results_left_out": sum(1 for c in kept if c["drop_result"])}
+
+
+def section_divider(sec, tok, info):
+    """The line above a messages-only section. `info` is None for a section whose tool calls were set aside
+    (built with tool-calls off, or by Tides before 0.4.0)."""
+    if info and info.get("tools") == "records":
+        extra = ""
+        if info.get("left_out"):
+            k = int(info["left_out"])
+            extra += f" · {k} call record{'' if k == 1 else 's'} left out (budget)"
+        if info.get("results_left_out"):
+            k = int(info["results_left_out"])
+            extra += f" · {k} result{'' if k == 1 else 's'} left out (budget)"
+        return (f"⟦tides · section {sec} · messages only, made at curation {sec} · thinking set aside · after each "
+                "turn, a quoted record of its past tool calls (long inputs and results cut to their first and last "
+                f"characters, with the count cut) · task notifications (agents' reports) kept whole{extra} · "
+                f"~{ktok(tok)} tokens⟧")
+    return (f"⟦tides · section {sec} · messages only · tool calls, results and thinking set aside at curation {sec}"
+            f" · task notifications (agents' reports) kept whole · ~{ktok(tok)} tokens⟧")
 
 
 def unit_from_record(r):
@@ -362,6 +572,15 @@ def read_tiers(path, cut=None, section_tokens=40000):
             Ms.setdefault(int(meta.get("sec") or meta.get("n") or 0), []).append(u)
     Ms = [(sec, Ms[sec]) for sec in sorted(Ms)]          # oldest section first
     M = [u for _, units in Ms for u in units]
+    Ds, Sinfo = {}, {}          # tool-call records per section, and what each section's divider recorded
+    for r in active:
+        meta = r.get(MARK) or {}
+        c = (r.get("message") or {}).get("content")
+        if meta.get("tier") == "D" and isinstance(c, str):
+            Ds.setdefault(int(meta.get("sec") or 0), []).append(
+                {"after": meta.get("after"), "text": c, "ts": r.get("timestamp")})
+        elif meta.get("tier") == "div" and meta.get("tools") and meta.get("sec") is not None:
+            Sinfo[int(meta["sec"])] = {k: meta.get(k) for k in ("tools", "left_out", "results_left_out")}
     dream_idx = max((i for i, r in enumerate(active) if (r.get(MARK) or {}).get("tier") == "dream"), default=None)
     if dream_idx is not None:
         f_old = [r for r in active[: dream_idx + 1] if (r.get(MARK) or {}).get("tier") in ("F", "dream")]
@@ -386,7 +605,7 @@ def read_tiers(path, cut=None, section_tokens=40000):
         new = active[start:]
         first = True
     return {"records": recs, "active": active, "K": K, "M": M, "Ms": Ms, "F_old": f_old, "NEW": new,
-            "first": first}
+            "first": first, "Ds": Ds, "Sinfo": Sinfo}
 
 
 def split_sections(Ms, N):
@@ -459,8 +678,28 @@ def section_tokens_estimate(path, records):
     return max(0, now - start) if start else 0
 
 
-def build_successor(path, st, dream_text, cfg):
-    """Write the next transcript. Returns (new_session_id, new_path, report dict)."""
+def tail_after_dream(path, st, dream_text):
+    """When the finish waited for background work: the records written after the dream (the hook's note,
+    the agents' reports, Claude's replies), in the order Claude Code would load them."""
+    full = active_records(read_records(path))
+    ids = [r.get("uuid") for r in full]
+    start = ids.index(st["cut"]) + 1 if st.get("cut") in ids else 0
+    key = (dream_text or "").strip().split("\n", 1)[0][:120]
+    di = next((i for i in range(start, len(full)) if full[i].get("type") == "assistant" and key
+               and key in assistant_text(full[i])), None)
+    if di is None:      # not found by its text: everything written since the dream was saved
+        since = st.get("dream_saved_at") or "9999"
+        return [r for r in full[start:] if (r.get("timestamp") or "") > since]
+    mid = msg_id(full[di])
+    last = max((i for i in range(di, len(full)) if full[i].get("type") == "assistant" and mid
+                and msg_id(full[i]) == mid), default=di)
+    return full[last + 1:]
+
+
+def build_successor(path, st, dream_text, cfg, last_message=None):
+    """Write the next transcript. Returns (new_session_id, new_path, report dict).
+    With st["dream_saved"] (the finish waited for background work), everything written after the dream
+    follows it, whole, ending with `last_message` if Claude Code has not written that yet."""
     S = section_size(path, st, cfg)
     n = int(st.get("curation", 0)) + 1
     st["cut"] = resolve_cut(path, st)
@@ -476,11 +715,44 @@ def build_successor(path, st, dream_text, cfg):
     sid = str(uuid.uuid4())
     out, parent = [], None
     next_id = int(st.get("next_id", 1))
+    tools_on = bool(cfg.get("tool_calls", True))
 
     def add(rec):
         nonlocal parent
         out.append(rec)
         parent = rec["uuid"]
+
+    def rehome(records, base):
+        """Verbatim records into the new session: their own parent links where the parent came along,
+        otherwise `base`; dropped attachments are stepped over."""
+        nonlocal parent
+        keep_ids = {r.get("uuid") for r in records if r.get("uuid")}
+        dropped = {r["uuid"]: r.get("parentUuid") for r in records
+                   if r.get("type") == "attachment" and (r.get("attachment") or {}).get("type") in DROP_ATTACHMENTS}
+
+        def resolve(p):
+            seen = set()
+            while p in dropped and p not in seen:
+                seen.add(p)
+                p = dropped[p]
+            return p
+
+        for r in records:
+            if r.get("uuid") in dropped:
+                continue
+            r = json.loads(json.dumps(r))
+            if "sessionId" in r:
+                r["sessionId"] = sid
+            if "session_id" in r:
+                r["session_id"] = sid
+            if r.get("uuid"):
+                p = resolve(r.get("parentUuid"))
+                r["parentUuid"] = p if p in keep_ids and p not in dropped else base
+                r[MARK] = {"tier": "F", "n": n}
+            out.append(r)
+            if r.get("uuid") and r.get("type") in CHAIN:
+                parent = r["uuid"]
+        return keep_ids
 
     # K: chosen from the old K and the messages-only sections leaving the window
     demote, carry = split_sections(T["Ms"], cfg["sections"])
@@ -489,11 +761,13 @@ def build_successor(path, st, dream_text, cfg):
     chosen = {i: tr for i, tr in picks}
     K_new = [dict(u, trunc=chosen[u["id"]] if chosen[u["id"]] else u.get("trunc"))
              for u in cands if u["id"] in chosen]
-    # M: the old full section (and the dream at its end), messages only
-    M_new = units_from(T["F_old"])
+    # M: the old full section (and the dream at its end), messages only, with its tool-call records
+    groups = [] if tools_on else None
+    M_new = units_from(T["F_old"], groups)
     for u in M_new:
         u["id"] = f"m{next_id}"
         next_id += 1
+    D_new, dstats = build_digests(groups, cfg, S) if tools_on else ([], {})
     NEW = [r for r in T["NEW"] if r.get("type") in CHAIN or r.get("type") == "file-history-snapshot"]
 
     first_ts = (K_new[0]["ts"] if K_new else (M_new[0]["ts"] if M_new else None)) or now_iso()
@@ -507,47 +781,41 @@ def build_successor(path, st, dream_text, cfg):
         for u in K_new:
             add(mk(u["role"], f"⟦{u['id']}⟧ " + truncate(u["text"], u.get("trunc")), u["ts"] or first_ts,
                    tmpl, sid, parent, {"tier": "K", "id": u["id"], "trunc": u.get("trunc")}, model=model))
-    for sec, units in carry + ([(n, M_new)] if M_new else []):
-        tok = sum(est_tokens(u["text"]) for u in units)
-        add(mk("user", f"⟦tides · section {sec} · messages only · tool calls, "
-                       f"results and thinking set aside at curation {sec} · ~{ktok(tok)} tokens⟧",
-               iso_minus(units[0]["ts"] or first_ts, 1), tmpl, sid, parent, {"tier": "div", "n": n}, is_meta=True))
+    secs = [(sec, units, T["Ds"].get(sec, []), T["Sinfo"].get(sec)) for sec, units in carry]
+    if M_new:
+        secs.append((n, M_new, D_new, dict(tools="records", **dstats) if tools_on else None))
+    d_tok = 0
+    for sec, units, ds, info in secs:
+        tok = sum(est_tokens(u["text"]) for u in units) + sum(est_tokens(d["text"]) for d in ds)
+        d_tok += sum(est_tokens(d["text"]) for d in ds)
+        meta = {"tier": "div", "n": n}
+        if info:
+            meta.update(sec=sec, **info)
+        add(mk("user", section_divider(sec, tok, info),
+               iso_minus(units[0]["ts"] or first_ts, 1), tmpl, sid, parent, meta, is_meta=True))
+        follows = {}
+        for d in ds:
+            follows.setdefault(d.get("after"), []).append(d)
+
+        def add_records(after_id, ts):
+            for d in follows.pop(after_id, []):
+                add(mk("user", d["text"], d.get("ts") or ts or first_ts, tmpl, sid, parent,
+                       {"tier": "D", "sec": sec, "after": after_id}, is_meta=True))
+
+        add_records(None, units[0]["ts"])
         for u in units:
             add(mk(u["role"], f"⟦{u['id']}⟧ " + u["text"], u["ts"] or first_ts, tmpl, sid, parent,
                    {"tier": "M", "id": u["id"], "sec": sec}, model=model))
+            add_records(u["id"], u["ts"])
+        for after_id in list(follows):        # a record whose unit is gone keeps its place at the section's end
+            add_records(after_id, None)
 
     # F: the newest section, whole (verbatim records, re-homed into the new session)
     if NEW:
         first_new_ts = next((r.get("timestamp") for r in NEW if r.get("timestamp")), now_iso())
         add(mk("user", f"⟦tides · section {n + 1} · whole⟧", iso_minus(first_new_ts, 1), tmpl, sid, parent,
                {"tier": "div", "n": n}, is_meta=True))
-        keep_ids = {r.get("uuid") for r in NEW if r.get("uuid")}
-        dropped = {r["uuid"]: r.get("parentUuid") for r in NEW
-                   if r.get("type") == "attachment" and (r.get("attachment") or {}).get("type") in DROP_ATTACHMENTS}
-
-        def resolve(p):
-            seen = set()
-            while p in dropped and p not in seen:
-                seen.add(p)
-                p = dropped[p]
-            return p
-
-        tail = parent
-        for r in NEW:
-            if r.get("uuid") in dropped:
-                continue
-            r = json.loads(json.dumps(r))
-            if "sessionId" in r:
-                r["sessionId"] = sid
-            if "session_id" in r:
-                r["session_id"] = sid
-            if r.get("uuid"):
-                p = resolve(r.get("parentUuid"))
-                r["parentUuid"] = p if p in keep_ids and p not in dropped else tail
-                r[MARK] = {"tier": "F", "n": n}
-            out.append(r)
-            if r.get("uuid") and r.get("type") in CHAIN:
-                parent = r["uuid"]
+        keep_ids = rehome(NEW, parent)
         # parent of the dream: the live leaf of the section
         leaf = st.get("cut") if st.get("cut") in keep_ids else None
         if leaf:
@@ -558,6 +826,24 @@ def build_successor(path, st, dream_text, cfg):
            {"tier": "div", "n": n}, is_meta=True))
     dream = mk("assistant", dream_text, now_iso(), tmpl, sid, parent, {"tier": "dream", "n": n}, model=model)
     add(dream)
+    leaf_uuid = dream["uuid"]
+
+    # after a wait for background work: what came after the dream, whole
+    tail = []
+    if st.get("dream_saved"):
+        tail = [r for r in tail_after_dream(path, st, st["dream_saved"]) if r.get("type") in CHAIN]
+        if tail:
+            rehome(tail, dream["uuid"])
+        said = (last_message or "").strip()
+        last_a = next((r for r in reversed(tail) if r.get("type") == "assistant"), None)
+        if said and (last_a is None or assistant_text(last_a).strip() != said):
+            # Claude Code writes a turn's last message ~170 ms after the Stop hook runs: add it ourselves
+            while out and out[-1].get("type") == "assistant" and out[-1] is not dream and not assistant_text(out[-1]).strip():
+                out.pop()
+                parent = next(r["uuid"] for r in reversed(out) if r.get("uuid") and r.get("type") in CHAIN)
+            add(mk("assistant", said, now_iso(), tmpl, sid, parent, {"tier": "F", "n": n, "written_by": "tides"},
+                   model=model))
+        leaf_uuid = parent
 
     # session metadata: resume leaf, title, permission mode
     for r in reversed(T["records"]):
@@ -566,7 +852,7 @@ def build_successor(path, st, dream_text, cfg):
             break
     title = (st.get("title") or "conversation").strip()[:60]
     out.append({"type": "custom-title", "customTitle": f"🌅 {title} · tide {n}", "sessionId": sid})
-    out.append({"type": "last-prompt", "lastPrompt": "", "leafUuid": dream["uuid"], "sessionId": sid})
+    out.append({"type": "last-prompt", "lastPrompt": "", "leafUuid": leaf_uuid, "sessionId": sid})
 
     new_path = Path(path).parent / f"{sid}.jsonl"
     with open(new_path, "w", encoding="utf-8") as f:
@@ -575,15 +861,46 @@ def build_successor(path, st, dream_text, cfg):
     report = {"n": n, "sid": sid, "path": str(new_path), "K": len(K_new), "K_tok": k_tok,
               "M": len(M_new), "M_tok": m_tok, "F_records": len(NEW),
               "F_tok": section_tokens_estimate(path, NEW),
-              "next_id": next_id}
+              "next_id": next_id, "D": len(D_new), "D_tok": d_tok, "tool_calls": tools_on,
+              "D_left_out": dstats.get("left_out", 0), "tail_records": len(tail)}
     return sid, new_path, report
 
 
 # ───────────────────────────── validation ──────────────────────────────────
 
+TIDES_WRITTEN = ("K", "M", "D", "div", "dream")
+
+
+def api_messages(act):
+    """The conversation as the API receives it: blocks of one assistant message (one message.id) joined,
+    even when tool results were written between them, and consecutive user records joined."""
+    msgs = []
+    for r in act:
+        kind = r.get("type")
+        if kind not in ("user", "assistant"):
+            continue
+        c = (r.get("message") or {}).get("content")
+        blocks = [{"type": "text", "text": c}] if isinstance(c, str) else [b for b in c or [] if isinstance(b, dict)]
+        if kind == "assistant":
+            mid = msg_id(r)
+            j = next((k for k in range(len(msgs) - 1, -1, -1) if msgs[k]["role"] == "assistant"), None)
+            if (j is not None and mid and msgs[j]["id"] == mid
+                    and all(all(b.get("type") == "tool_result" for b in m["blocks"]) for m in msgs[j + 1:])):
+                msgs[j]["blocks"] += blocks
+                continue
+            msgs.append({"role": "assistant", "id": mid, "blocks": blocks})
+        elif msgs and msgs[-1]["role"] == "user":
+            msgs[-1]["blocks"] += blocks
+        else:
+            msgs.append({"role": "user", "id": None, "blocks": blocks})
+    return msgs
+
+
 def validate(path):
-    """Rough check that Claude Code can load this: one chain from leaf to root,
-    every tool_use answered, and the conversation opens with a user turn."""
+    """Check that Claude Code can load this and the API will accept it: one chain from leaf to root that
+    opens with a user turn; every tool_use answered in the very next user message, results first; no
+    duplicate ids and no result without its call; the last assistant message makes no tool call; no tool
+    or thinking blocks in any record Tides wrote; every tool-call record framed, user-role and meta."""
     recs = read_records(path)
     leaf = next((r.get("leafUuid") for r in reversed(recs) if r.get("type") == "last-prompt"), None)
     act = active_records(recs, leaf)
@@ -595,24 +912,71 @@ def validate(path):
     first_msg = next((r for r in act if r.get("type") in ("user", "assistant")), None)
     if first_msg is None or first_msg.get("type") != "user":
         problems.append("first message is not a user turn")
-    uses, results = [], set()
-    for r in act:
-        if r.get("type") == "assistant":
-            uses += tool_ids(r, "tool_use")
-        elif r.get("type") == "user":
-            results |= set(tool_ids(r, "tool_result"))
-    missing = [u for u in uses if u not in results]
-    if missing:
-        problems.append(f"{len(missing)} tool call(s) without results")
-    orphans = results - set(uses)
+    msgs = api_messages(act)
+    unanswered = late_order = orphans = 0
+    seen_use, seen_res, dup = set(), set(), set()
+    for i, m in enumerate(msgs):
+        if m["role"] == "assistant":
+            uses = [b.get("id") for b in m["blocks"] if b.get("type") == "tool_use"]
+            for u in uses:
+                if u in seen_use:
+                    dup.add(u)
+                seen_use.add(u)
+            if not uses:
+                continue
+            nxt = msgs[i + 1] if i + 1 < len(msgs) else None
+            got = {b.get("tool_use_id") for b in (nxt or {}).get("blocks", []) if b.get("type") == "tool_result"} \
+                if nxt and nxt["role"] == "user" else set()
+            unanswered += sum(1 for u in uses if u not in got)
+        else:
+            kinds = [b.get("type") == "tool_result" for b in m["blocks"]]
+            if True in kinds and False in kinds[: len(kinds) - kinds[::-1].index(True)]:
+                late_order += 1
+            prev = msgs[i - 1] if i > 0 and msgs[i - 1]["role"] == "assistant" else None
+            asked = {b.get("id") for b in (prev or {}).get("blocks", []) if b.get("type") == "tool_use"}
+            for b in m["blocks"]:
+                if b.get("type") == "tool_result":
+                    t = b.get("tool_use_id")
+                    if t in seen_res:
+                        dup.add(t)
+                    seen_res.add(t)
+                    if t not in asked:
+                        orphans += 1
+    if unanswered:
+        problems.append(f"{unanswered} tool call(s) not answered in the next message")
     if orphans:
-        problems.append(f"{len(orphans)} tool result(s) without a call")
+        problems.append(f"{orphans} tool result(s) without a call just before them")
+    if late_order:
+        problems.append(f"{late_order} message(s) with text before their tool results")
+    if dup:
+        problems.append(f"{len(dup)} duplicate tool id(s)")
+    last_a = next((m for m in reversed(msgs) if m["role"] == "assistant"), None)
+    if last_a and any(b.get("type") == "tool_use" for b in last_a["blocks"]):
+        problems.append("the last assistant message makes a tool call")
+    wrote_tools = wrote_thinking = bad_d = 0
+    for r in act:
+        meta = r.get(MARK) or {}
+        if not (meta.get("tier") in TIDES_WRITTEN or meta.get("written_by") == "tides"):
+            continue
+        c = (r.get("message") or {}).get("content")
+        kinds = {b.get("type") for b in c if isinstance(b, dict)} if isinstance(c, list) else set()
+        wrote_tools += bool(kinds & {"tool_use", "tool_result", "server_tool_use"})
+        wrote_thinking += bool(kinds & {"thinking", "redacted_thinking"})
+        if meta.get("tier") == "D" and not (r.get("type") == "user" and r.get("isMeta") and isinstance(c, str)
+                                           and c.startswith(TOOL_FRAME + "\n")):
+            bad_d += 1
+    if wrote_tools:
+        problems.append(f"{wrote_tools} record(s) Tides wrote hold a tool block")
+    if wrote_thinking:
+        problems.append(f"{wrote_thinking} record(s) Tides wrote hold a thinking block")
+    if bad_d:
+        problems.append(f"{bad_d} tool-call record(s) not framed as a quoted user-side meta record")
     return problems
 
 
 # ───────────────────────────── the words Claude reads ──────────────────────
 
-def notice_text(path, st, cfg, reason="due"):
+def notice_text(path, st, cfg, reason="due", cut_off=None):
     S, C, _ = limits(path, st, cfg)
     B = int(S * cfg["keep_ratio"])
     n = int(st.get("curation", 0)) + 1
@@ -633,11 +997,19 @@ def notice_text(path, st, cfg, reason="due"):
         ]
     else:
         lines += ["", "1. Nothing to choose this time: there is no oldest tier yet."]
+    if cfg.get("tool_calls", True):
+        in_cap, res_cap, _ = tool_settings(cfg)
+        two = (f"2. Section {n} keeps its messages, and after each turn a short quoted record of its tool calls: "
+               f"the name, the command or file, and the result's first and last characters (up to {in_cap} and "
+               f"{res_cap}). Thinking is set aside. If you will need more of a result than that, carry it into "
+               "your dream. Records are not carried into the oldest tier.")
+    else:
+        two = (f"2. Section {n} keeps its messages. Its tool calls, results and thinking are set aside (task "
+               "notifications, such as agents' reports, stay as messages); if a tool result matters, carry its gist "
+               "into your dream.")
     lines += [
-        f"2. Section {n} keeps its messages. Its tool calls, results and thinking are set aside; if a tool "
-        "result matters, carry its gist into your dream."
-        + (f" (You keep {cfg['sections'] - 2} messages-only sections; older ones stay as they are.)"
-           if cfg["sections"] > 3 else ""),
+        two + (f" (You keep {cfg['sections'] - 2} messages-only sections; older ones stay as they are.)"
+               if cfg["sections"] > 3 else ""),
         f"3. Section {n + 1}, the newest, stays whole.",
         "",
         "Then write your dream: a message that starts with #dream. A note, a review, a poem, whatever you want "
@@ -645,7 +1017,29 @@ def notice_text(path, st, cfg, reason="due"):
         f"if you like. Nothing is deleted: the full transcript is archived in {ARCHIVE}/. Mid-task? Finish the "
         f"step first, or run `{CLI} later`.",
     ]
+    if cut_off:
+        why = ("the context is close to the window's limit and Claude Code's compaction is off"
+               if reason == "limit" else "it was forced")
+        lines += ["", f"⚠ This curation will go ahead while {len(cut_off)} background task"
+                      f"{'' if len(cut_off) == 1 else 's'} still run ({why}): {describe_tasks(cut_off)}. They keep "
+                      "running in this window after you wake, and their reports will not reach the new one. The wake "
+                      "message will say where to find their transcripts and output."]
     return "\n".join(lines)
+
+
+def describe_tasks(tasks, path=None):
+    out = []
+    for t in tasks:
+        kind = t.get("type") or "task"
+        s = f"{kind} “{t.get('description') or t.get('id') or '?'}”"
+        if t.get("agent_type"):
+            s += f" ({t['agent_type']})"
+        elif t.get("command") and t.get("command") != t.get("description"):
+            s += f" (`{cut(t['command'], 80)}`)"
+        if t.get("where"):
+            s += f", {t['where']}"
+        out.append(s)
+    return "; ".join(out)
 
 
 def wake_text(report):
@@ -653,11 +1047,28 @@ def wake_text(report):
     if report["K"]:
         parts.append(f"{report['K']} kept memories (~{ktok(report['K_tok'])})")
     if report["M"]:
-        parts.append(f"section {report['n']} as messages (~{ktok(report['M_tok'])})")
+        if report.get("tool_calls"):
+            parts.append(f"section {report['n']} as messages with records of its tool calls "
+                         f"(~{ktok(report['M_tok'] + report.get('D_tok', 0))})")
+        else:
+            parts.append(f"section {report['n']} as messages (~{ktok(report['M_tok'])})")
     parts.append(f"section {report['n'] + 1} whole")
-    return (f"🌅 Tides · awake after curation {report['n']}. You're in the new transcript: "
-            + " → ".join(parts) + " → your dream. Nothing was deleted (archive: "
-            f"{ARCHIVE}/). Carry on however you like: the conversation, the task, or a question.")
+    text = (f"🌅 Tides · awake after curation {report['n']}. You're in the new transcript: "
+            + " → ".join(parts) + " → your dream" + (" → what came after it" if report.get("tail_records") else "")
+            + f". Nothing was deleted (archive: {ARCHIVE}/). Carry on however you like: the conversation, the task, "
+            "or a question.")
+    if report.get("waited"):
+        w = report["waited"]
+        text += (f" (This curation waited for {len(w)} background task{'' if len(w) == 1 else 's'} to finish: "
+                 f"{describe_tasks(w)}. Their reports are in the newest section, after your dream.)")
+    if report.get("cut_off"):
+        c = report["cut_off"]
+        text += (f"\n\n⚠ {len(c)} background task{'s were' if len(c) != 1 else ' was'} still running when this curation "
+                 f"finished, in the previous window (session {report.get('old_sid', '')[:8]}): {describe_tasks(c)}. "
+                 f"{'They are' if len(c) != 1 else 'It is'} still running there, and {'their reports' if len(c) != 1 else 'its report'} "
+                 "will not arrive here. Before you redo any of that work or call it failed, read the transcript or "
+                 "output file named above.")
+    return text
 
 
 # ───────────────────────────── waking ──────────────────────────────────────
@@ -1043,23 +1454,35 @@ def conversation_title(recs):
     return None
 
 
+WAIT_KEYS = ("dream_saved", "dream_saved_at", "waiting_on", "force")
+
+
 def start_curation(sid, path, st, trigger):
     st.update({"phase": "curating", "trigger": trigger, "cut": None, "plan": [], "started": time.time(),
                "path": str(path), "reminded": False})
-    st.pop("postponed_to", None)
+    for k in ("postponed_to",) + WAIT_KEYS:
+        st.pop(k, None)
     save_state(sid, st)
 
 
 def cancel_curation(sid, st, why):
     st.update({"phase": "idle", "plan": [], "cut": None})
+    for k in WAIT_KEYS:
+        st.pop(k, None)
     log(sid[:8], "curation cancelled:", why)
     save_state(sid, st)
 
 
-def finish_curation(sid, path, st, dream, cfg, cwd):
-    """Build, check, archive, and wake. Any failure leaves the old session untouched."""
+def finish_curation(sid, path, st, dream, cfg, cwd, cut_off=None, last_message=None):
+    """Build, check, archive, and wake. Any failure leaves the old session untouched. `cut_off`: background
+    tasks still running (only when the tide was forced); the wake text tells the new window where they are."""
     st["title"] = st.get("title") or conversation_title(read_records(path)) or Path(cwd).name
-    new_sid, new_path, rep = build_successor(path, st, dream, cfg)
+    new_sid, new_path, rep = build_successor(path, st, dream, cfg, last_message=last_message)
+    rep["old_sid"] = sid
+    if st.get("dream_saved"):
+        rep["waited"] = st.get("waiting_on") or []
+    if cut_off:
+        rep["cut_off"] = locate_tasks(cut_off, path, st)
     problems = validate(new_path)
     if problems:
         bad = Path(str(new_path) + ".failed")
@@ -1115,14 +1538,31 @@ def hook_stop(inp, cfg):
     cfg = config(st)
     st.setdefault("lineage", sid)
     st["path"] = str(path)
+    running = running_tasks(inp)
+    st["tasks_seen"] = {"t": time.time(), "tasks": running or [], "reported": running is not None}
+    if running is None:       # a Claude Code that doesn't report background work: scan for agents instead
+        running = [{"type": "subagent", "description": d} for d in live_subagents(path)]
     last = inp.get("last_assistant_message") or ""
     if st.get("phase") == "curating":
         if time.time() - float(st.get("started") or 0) > 3 * 3600:
+            st.pop("launches", None)
             return cancel_curation(sid, st, "stale")
         m = DREAM_RE.search(last)
-        if m:
+        if m or st.get("dream_saved"):
+            waited = bool(st.get("dream_saved"))
+            dream = st.get("dream_saved") or last[m.start():]
+            if running and not st.get("force") and not forced_now(path, st, cfg):
+                st.update({"dream_saved": dream, "waiting_on": running})
+                st.setdefault("dream_saved_at", now_iso())
+                save_state(sid, st)
+                log(sid[:8], "dream saved; waiting for", len(running), "background task(s)")
+                if not waited:
+                    return emit({"decision": "block", "reason": waiting_text(running),
+                                 "systemMessage": "🌙 Tides: the curation will finish once the background work is done."})
+                return
             try:
-                new_sid, rep = finish_curation(sid, path, st, last[m.start():], cfg, cwd)
+                new_sid, rep = finish_curation(sid, path, st, dream, cfg, cwd, cut_off=running,
+                                               last_message=last if waited else None)
             except Exception as e:
                 log(sid[:8], "build failed:", repr(e))
                 cancel_curation(sid, load_state(sid), "build failed")
@@ -1137,6 +1577,7 @@ def hook_stop(inp, cfg):
                          "Tides: to finish the curation, end with a message that starts with #dream. "
                          f"(Or run `{CLI} later` to postpone.)"})
         return cancel_curation(sid, st, "stopped without a dream")
+    st.pop("launches", None)  # this Stop's list covers every launch before it
     if not cfg.get("enabled", True) or inp.get("stop_hook_active"):
         save_state(sid, st)
         return
@@ -1146,7 +1587,14 @@ def hook_stop(inp, cfg):
         st["enabled_here"] = False
         save_state(sid, st)
         return log(sid[:8], "teammate session; Tides stays out of it")
-    if is_due and (inp.get("background_tasks") or inp.get("session_crons")):
+    if is_due and (running or inp.get("session_crons")):
+        if running and forced_now(path, st, cfg):
+            start_curation(sid, path, st, "stop")
+            st["force"] = True
+            save_state(sid, st)
+            log(sid[:8], "near the window's limit with compaction off: curating despite", len(running), "task(s)")
+            return emit({"decision": "block", "reason": notice_text(path, st, cfg, reason="limit", cut_off=running),
+                         "systemMessage": "🌙 Claude is curating its memory (Tides). Back in a minute or two."})
         log(sid[:8], "due, but background work is running; waiting")
         return
     if is_due:
@@ -1172,7 +1620,7 @@ def hook_session_start(inp, cfg):
             return emit({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}})
         return emit({"hookSpecificOutput": {"hookEventName": "SessionStart", "initialUserMessage": text}})
     if src == "compact" and st:
-        for k in ("base", "cut", "plan", "postponed_to", "curated_session"):
+        for k in ("base", "cut", "plan", "postponed_to", "curated_session", "launches") + WAIT_KEYS:
             st.pop(k, None)
         st["phase"] = "idle"
         st["compacted"] = time.time()
@@ -1181,7 +1629,9 @@ def hook_session_start(inp, cfg):
     if src == "startup" and cfg.get("intro", True) and cfg.get("enabled", True):
         return emit({"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext":
                      "Tides is on: instead of compaction, every so often you'll curate your own working memory "
-                     "(keep what matters, set old tool output aside) and keep going in the same conversation. "
+                     + ("(keep what matters; older tool calls stay as short quoted records, then are set aside) "
+                        if cfg.get("tool_calls", True) else "(keep what matters, set old tool output aside) ")
+                     + "and keep going in the same conversation. It waits while background work runs. "
                      f"Nothing is deleted. Ceiling {ktok(cfg['ceiling'])}"
                      + (f", or every {ktok(cfg['section_tokens'])} of new context if sooner" if cfg.get("section_tokens") else "")
                      + f"; {cfg['sections']} sections."}})
@@ -1205,7 +1655,7 @@ def hook_prompt(inp, cfg):
                      f"This conversation continues in its curated transcript. To open it: "
                      f"cd {shlex.quote(session_home(st.get('path') or '', inp.get('cwd') or os.getcwd()))} && "
                      f"claude --resume {st['superseded_by']}   ·   To keep talking here instead, type: stay here"})
-    if st.get("phase") == "curating":
+    if st.get("phase") == "curating" and not st.get("dream_saved"):
         cancel_curation(sid, st, "the person spoke mid-curation")
 
 
@@ -1214,9 +1664,12 @@ def hook_post_tool(inp, cfg):
         return   # a subagent's tool call; Tides is for the main conversation
     sid = inp.get("session_id")
     st = load_state(sid)
+    launched = record_launch(inp, st)
     cfg = config(st)
     if (not cfg.get("enabled", True) or not st.get("seen_start") or st.get("phase") == "curating"
             or st.get("superseded_by")):
+        if launched and st.get("seen_start"):
+            save_state(sid, st)
         return
     path = find_transcript(sid, inp.get("transcript_path"))
     if not path:
@@ -1224,9 +1677,9 @@ def hook_post_tool(inp, cfg):
     is_due, ctx, base = due(path, st, cfg)
     S, C, _ = limits(path, st, cfg)
     at, _ = next_tide(path, st, cfg, base)
-    if is_due and live_subagents(path):
+    if is_due and tasks_in_flight(path, st):
         save_state(sid, st)
-        return   # agents are still working; a tide would cut them off. Ask again after they report.
+        return   # background work is running; a tide would cut it off. Ask again after it reports.
     nudge_at = min(at + int(S * (cfg["nudge_ratio"] - 1)), max(at, int(0.85 * (st.get("window") or 200000))))
     if is_due and ctx >= nudge_at and ctx - int(st.get("nudged_at") or 0) >= S // 4:
         st["nudged_at"] = ctx
@@ -1236,6 +1689,182 @@ def hook_post_tool(inp, cfg):
               f"`{CLI} begin`. Your task will be right here when you wake."}})
     else:
         save_state(sid, st)
+
+
+# ───────────────────────────── background work ─────────────────────────────
+#
+# A tide switches the conversation to a new session, and work still running in the old one is cut off from
+# it: its report never arrives (seen twice on 2026-11-12). Claude Code's Stop input lists that work in
+# `background_tasks` (2.1.322: running or pending tasks only, each {id, type, status, description, and
+# command | agent_type | server+tool | name}; `type` is a label such as "shell", "subagent", "monitor",
+# "workflow"). That list is the hard gate at the Stop hook. `begin` and the due-nudge run mid-turn, where
+# there is no such list, so they use the last Stop's list, plus launches seen since, minus completions.
+
+INTERNAL_TASK_TYPES = {"dream", "auto-mode scan", "memory import", "memory save",
+                       "auto_mode_scan", "local_memory_import", "post_turn_memory"}   # Claude Code's own
+RUNNING_STATUSES = {"running", "pending", "started", "in_progress"}
+NOTE_RE = re.compile(r"<task-notification>(.*?)</task-notification>", re.S)
+FORCE_AT = 0.90              # of the effective window, when Claude Code's compaction is off
+OUTPUT_RESERVE = 20000       # Claude Code keeps this much of the window for the reply (2.1.322)
+
+
+def running_tasks(inp):
+    """The background work a tide would cut off, from a Stop input; None if this Claude Code doesn't say."""
+    if "background_tasks" not in inp:
+        return None
+    out = []
+    for t in inp.get("background_tasks") or []:
+        if not isinstance(t, dict) or str(t.get("type")) in INTERNAL_TASK_TYPES:
+            continue
+        if t.get("status") is not None and str(t.get("status")) not in RUNNING_STATUSES:
+            continue
+        out.append({k: t[k] for k in ("id", "type", "status", "description", "command", "agent_type", "name",
+                                      "server", "tool") if t.get(k) is not None})
+    return out
+
+
+def record_launch(inp, st):
+    """PostToolUse: note a background launch (Agent, Bash or Monitor in the background). True if one was."""
+    name = inp.get("tool_name") or ""
+    ti = inp.get("tool_input") if isinstance(inp.get("tool_input"), dict) else {}
+    tr = inp.get("tool_response") if isinstance(inp.get("tool_response"), dict) else {}
+    tid = tr.get("agentId") or tr.get("backgroundTaskId") or tr.get("taskId") or tr.get("task_id")
+    background = ti.get("run_in_background") or tr.get("isAsync") or tr.get("backgroundTaskId")
+    if not (background or (name == "Monitor" and tid)):
+        return False
+    kind = "subagent" if name in ("Agent", "Task") else "shell" if name == "Bash" else name.lower() or "task"
+    st.setdefault("launches", []).append({
+        "id": tid or "", "tool_use_id": inp.get("tool_use_id") or "", "type": kind,
+        "description": ti.get("description") or tr.get("description") or (ti.get("command") or "")[:80],
+        "output": tr.get("outputFile") or "", "t": time.time()})
+    return True
+
+
+def iso_epoch(ts):
+    try:
+        return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc).timestamp()
+    except Exception:
+        return 0.0
+
+
+def _strings(x):
+    if isinstance(x, str):
+        yield x
+    elif isinstance(x, dict):
+        for v in x.values():
+            yield from _strings(v)
+    elif isinstance(x, list):
+        for v in x:
+            yield from _strings(v)
+
+
+def finished_tasks(path):
+    """{task id or tool-use id: time of its latest final notification} from the transcript."""
+    done = {}
+    try:
+        with open(path, encoding="utf-8", errors="replace") as f:
+            for line in f:
+                if "<task-notification>" not in line:
+                    continue
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                t = iso_epoch(r.get("timestamp") or "")
+                for s in _strings(r.get("message") or r.get("attachment") or {}):
+                    for m in NOTE_RE.finditer(s):
+                        body = m.group(1)
+                        tag = lambda k: (re.search(rf"<{k}>(.*?)</{k}>", body, re.S) or [None, ""])[1].strip()
+                        if tag("status").lower() in RUNNING_STATUSES:
+                            continue
+                        for key in (tag("task-id"), tag("tool-use-id")):
+                            if key:
+                                done[key] = max(done.get(key, 0.0), t)
+    except OSError:
+        pass
+    return done
+
+
+def tasks_in_flight(path, st):
+    """Advisory, for `begin` and the nudge: the last Stop's running tasks, plus launches since, minus any whose
+    final notification has arrived since. No time limit: a quiet agent is still running. With a Claude Code
+    that doesn't report background work, falls back to scanning this session's agent transcripts."""
+    snap = st.get("tasks_seen") or {}
+    if not snap.get("reported"):
+        return [{"type": "subagent", "description": d} for d in live_subagents(path)]
+    since = float(snap.get("t") or 0)
+    run = {}
+    for t in snap.get("tasks") or []:
+        run[t.get("id") or json.dumps(t)] = dict(t, since=since)
+    for l in st.get("launches") or []:
+        if float(l.get("t") or 0) >= since:
+            run[l.get("id") or l.get("tool_use_id") or json.dumps(l)] = dict(l, since=float(l["t"]))
+    if run:
+        done = finished_tasks(path)
+        for k, t in list(run.items()):
+            if any(key and done.get(key, -1) >= t["since"] - 5 for key in (t.get("id"), t.get("tool_use_id"))):
+                run.pop(k)
+    return [{k: v for k, v in t.items() if k not in ("since", "t")} for t in run.values()]
+
+
+def compaction_off():
+    """Is Claude Code's auto-compaction off? (DISABLE_COMPACT / DISABLE_AUTO_COMPACT, or autoCompactEnabled false
+    in the user settings or the global config.)"""
+    for k in ("DISABLE_COMPACT", "DISABLE_AUTO_COMPACT"):
+        if os.environ.get(k, "").strip().lower() in ("1", "true", "yes", "on"):
+            return True
+    d = os.environ.get("CLAUDE_CONFIG_DIR")
+    for f in (Path(d) / "settings.json", Path(d) / ".claude.json") if d else \
+            (HOME / ".claude" / "settings.json", HOME / ".claude.json"):
+        try:
+            v = json.loads(f.read_text()).get("autoCompactEnabled")
+        except Exception:
+            continue
+        if v is not None:
+            return v is False
+    return False
+
+
+def forced_now(path, st, cfg):
+    """A tide goes ahead despite running work only when nothing else will save the conversation: Claude Code's
+    compaction is off and the context has reached 90% of the effective window."""
+    if not compaction_off():
+        return False
+    win = int(st.get("window") or window_tokens(path, cfg))
+    return (context_tokens(path) or 0) >= FORCE_AT * (win - OUTPUT_RESERVE)
+
+
+def locate_tasks(tasks, path, st):
+    """Where each task's own record lives: an agent's transcript, or a background command's output file."""
+    tasks_dir = None
+    out = []
+    for t in tasks:
+        t = dict(t)
+        launch = next((l for l in st.get("launches") or [] if t.get("id") and l.get("id") == t.get("id")), {})
+        if t.get("type") == "subagent" and t.get("id"):
+            t["where"] = "transcript: " + str(Path(str(path)[:-len(".jsonl")]) / "subagents" / f"agent-{t['id']}.jsonl")
+        elif launch.get("output"):
+            t["where"] = "output: " + launch["output"]
+        elif t.get("id"):
+            if tasks_dir is None:
+                tasks_dir = ""
+                try:
+                    hits = re.findall(r"(/[^\s\"'<>\\]+/tasks)/[\w.-]+\.output", Path(path).read_text(errors="replace"))
+                    tasks_dir = hits[-1] if hits else ""
+                except OSError:
+                    pass
+            if tasks_dir:
+                t["where"] = f"output: {tasks_dir}/{t['id']}.output"
+        out.append(t)
+    return out
+
+
+def waiting_text(tasks):
+    return (f"Tides: your dream is saved, but {len(tasks)} background task{'' if len(tasks) == 1 else 's'} "
+            f"{'is' if len(tasks) == 1 else 'are'} still running ({describe_tasks(tasks)}). A curation now would cut "
+            f"{'it' if len(tasks) == 1 else 'them'} off from this conversation, so it waits: it finishes by itself at "
+            "the end of the first turn after they are done, and their reports will be kept whole, after your dream. "
+            "Carry on as usual meanwhile; there is no need to write another dream.")
 
 
 def live_subagents(path, fresh=1800):
@@ -1295,15 +1924,23 @@ def cmd_begin(cfg, force=False):
     st = load_state(sid)
     cfg = config(st)
     st.setdefault("lineage", sid)
-    live = [] if force else live_subagents(path)
-    if live:
-        return print("Tides: not starting. %d background agent%s still working (%s), and a tide would cut "
-                     "%s off from this conversation, so the report would never arrive. Wait for the report, "
-                     "then run begin again. To curate anyway and lose them: `%s begin --force`."
-                     % (len(live), "" if len(live) == 1 else "s", "; ".join(live),
-                        "it" if len(live) == 1 else "them", CLI))
+    if st.get("phase") == "curating" and st.get("dream_saved") and not force:
+        return print("Tides: a curation is already waiting for background work to finish (%s). Your dream is saved; "
+                     "it completes by itself at the end of the first turn after that work is done."
+                     % describe_tasks(st.get("waiting_on") or []))
+    live = tasks_in_flight(path, st)
+    if live and not force:
+        return print("Tides: not starting. %d background task%s still running (%s), and a tide would cut "
+                     "%s off from this conversation, so %s would never arrive. Wait for %s, "
+                     "then run begin again. To curate anyway and cut %s off: `%s begin --force`."
+                     % (len(live), "" if len(live) == 1 else "s", describe_tasks(live),
+                        "it" if len(live) == 1 else "them", "its report" if len(live) == 1 else "their reports",
+                        "it" if len(live) == 1 else "them", "it" if len(live) == 1 else "them", CLI))
     start_curation(sid, path, st, "begin")
-    print(notice_text(path, st, cfg))
+    if force:
+        st["force"] = True
+        save_state(sid, st)
+    print(notice_text(path, st, cfg, reason="forced", cut_off=live if force else None))
 
 
 def cmd_keep(args, cfg):
@@ -1345,6 +1982,8 @@ def cmd_later(cfg):
     ctx = context_tokens(path) if path else 0
     q = limits(path, st, cfg)[2] if path else 10000
     st.update({"phase": "idle", "plan": [], "cut": None, "postponed_to": (ctx or 0) + q})
+    for k in WAIT_KEYS:
+        st.pop(k, None)
     save_state(sid, st)
     print(f"Tides: postponed. I'll ask again in about {ktok(q)} tokens.")
 
@@ -1356,6 +1995,13 @@ def cmd_status(cfg):
     print(f"Tides {VERSION} · {'on' if cfg.get('enabled', True) else 'off'} · ceiling {ktok(cfg['ceiling'])} · "
           f"section {ktok(cfg['section_tokens']) if cfg.get('section_tokens') else 'from the ceiling'} · "
           f"{cfg['sections']} sections · keep {cfg['keep_ratio']:.0%} of a section · wake: {cfg.get('wake')}")
+    in_cap, res_cap, share = tool_settings(cfg)
+    print("  tool calls: " + (f"kept as records (input {in_cap}, result {res_cap} characters; up to {share:.0%} of a "
+                              "section) in messages-only sections, set aside in the oldest tier"
+                              if cfg.get("tool_calls", True) else "set aside (messages only)")
+          + " · thinking: set aside · task notifications (agents' reports): kept whole")
+    if path and st.get("dream_saved") and st.get("phase") == "curating":
+        print(f"  a curation is waiting for background work: {describe_tasks(st.get('waiting_on') or [])}")
     if path:
         is_due, ctx, base = due(path, st, cfg)      # learns the fixed overhead first
         S, C, _ = limits(path, st, cfg)
@@ -1370,7 +2016,7 @@ def cmd_status(cfg):
               + ("" if cfg.get("section_tokens") else f" · fixed overhead ~{ktok(st.get('overhead') or 0)}"))
         print(f"  kept memories: {len(T['K'])} · messages-only: {len(T['M'])} · whole: "
               f"{len([r for r in T['NEW'] if r.get('type') in ('user', 'assistant')])} records")
-    print(f"Archive: {ARCHIVE}/   Settings: {CLI} set ceiling 400k | section-size 100k | sections 4 | wake manual | off | on  (add --here for this conversation only)")
+    print(f"Archive: {ARCHIVE}/   Settings: {CLI} set ceiling 400k | section-size 100k | sections 4 | tool-calls on|off | tool-call-chars 200/150 | tool-share 5% | wake manual | off | on  (add --here for this conversation only)")
 
 
 def cmd_set(args):
@@ -1399,8 +2045,20 @@ def cmd_set(args):
         c["wake_command"] = " ".join(args[1:])
     elif key == "intro" and val:
         c["intro"] = val.lower() in ("1", "on", "true", "yes")
+    elif key in ("tool-calls", "tool_calls") and val.lower() in ("on", "off"):
+        c["tool_calls"] = val.lower() == "on"
+    elif key in ("tool-call-chars", "tool_call_chars") and re.fullmatch(r"\d+([/,]\d+)?", "/".join(args[1:3]).replace(",", "/")):
+        nums = [int(x) for x in re.split(r"[/,]", "/".join(args[1:3]).replace(",", "/")) if x]
+        c["tool_input_chars"], c["tool_result_chars"] = nums[0], nums[-1]
+    elif key in ("tool-share", "tool_share") and re.fullmatch(r"\d+(\.\d+)?%?", val):
+        share = float(val.rstrip("%"))
+        share = share / 100 if (val.endswith("%") or share > 1) else share
+        if share > MAX_TOOL_SHARE:
+            print(f"Tides: tool-share is at most {MAX_TOOL_SHARE:.0%} of a section; using {MAX_TOOL_SHARE:.0%}.")
+        c["tool_share"] = min(MAX_TOOL_SHARE, share)
     else:
         return print("usage: set ceiling 400k | section-size 100k (0 = from the ceiling) | sections 4 | keep 0.1 | "
+                     "tool-calls on|off | tool-call-chars 200/150 (input/result) | tool-share 5% (at most 10%) | "
                      "wake auto|window|manual | intro on|off | on | off   [--here = this conversation only]")
     if st is not None:
         st["settings"] = c

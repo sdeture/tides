@@ -250,11 +250,11 @@ def _budget_run(name, share, section=20000, **over):
 
 class R4Budget(unittest.TestCase):
     def full_cost(self):
-        _, D, div, cost = _budget_run("r4_full", 0.10, section=200000)
+        _, D, div, cost = _budget_run("r4_full", 0.10)
         return D, cost
 
     def test_r4_under_budget_nothing_dropped(self):
-        _, D, div, cost = _budget_run("r4_under", 0.10, section=200000)
+        _, D, div, cost = _budget_run("r4_under", 0.10)
         self.assertNotRegex(div, r"left out")
         self.assertFalse(any("⟪result not kept" in C.text_of(r) for r in D))
 
