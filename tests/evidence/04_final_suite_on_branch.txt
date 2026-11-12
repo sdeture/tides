@@ -1,0 +1,55 @@
+test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations (test_digests.R10Legacy.test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations) ... ok
+test_r1_agent_prompt_and_skill_args_are_not_shown (test_digests.R1Digests.test_r1_agent_prompt_and_skill_args_are_not_shown) ... ok
+test_r1_one_record_per_turn_with_every_field_in_order (test_digests.R1Digests.test_r1_one_record_per_turn_with_every_field_in_order) ... ok
+test_r1b_digests_carried_byte_identical_then_dropped (test_digests.R1bCarry.test_r1b_digests_carried_byte_identical_then_dropped) ... ok
+test_r2_every_mark_is_exact_arithmetic (test_digests.R2Exact.test_r2_every_mark_is_exact_arithmetic) ... ok
+test_r2_no_character_outside_originals_and_constants (test_digests.R2Exact.test_r2_no_character_outside_originals_and_constants) ... ok
+test_r3_r9_kept_memories_never_hold_digests_and_candidates_match_off (test_digests.R3KeptMemories.test_r3_r9_kept_memories_never_hold_digests_and_candidates_match_off) ... ok
+test_r4_at_budget_nothing_dropped_one_under_something_is (test_digests.R4Budget.test_r4_at_budget_nothing_dropped_one_under_something_is) ... ok
+test_r4_over_budget_order_results_then_inputs_then_lines (test_digests.R4Budget.test_r4_over_budget_order_results_then_inputs_then_lines) ... ok
+test_r4_results_go_oldest_first (test_digests.R4Budget.test_r4_results_go_oldest_first) ... ok
+test_r4_settings_set_and_shown (test_digests.R4Budget.test_r4_settings_set_and_shown) ... ok
+test_r4_share_never_above_ten_percent (test_digests.R4Budget.test_r4_share_never_above_ten_percent) ... ok
+test_r4_under_budget_nothing_dropped (test_digests.R4Budget.test_r4_under_budget_nothing_dropped) ... ok
+test_r6_first_curation_dense_and_chatty (test_digests.R6Off.test_r6_first_curation_dense_and_chatty) ... ok
+test_r6_later_curation_with_keeps_and_carry (test_digests.R6Off.test_r6_later_curation_with_keeps_and_carry) ... ok
+test_r6_only_the_divider_differs (test_digests.R6Off.test_r6_only_the_divider_differs) ... ok
+test_r8_digests_only_in_meta_user_records_with_the_frame (test_digests.R8Form.test_r8_digests_only_in_meta_user_records_with_the_frame) ... ok
+test_r11_a_quiet_agent_45_minutes_in_still_counts (test_guard.Advisory.test_r11_a_quiet_agent_45_minutes_in_still_counts) ... ok
+test_r11_background_bash_launch_counts_too (test_guard.Advisory.test_r11_background_bash_launch_counts_too) ... ok
+test_r11_launch_then_begin_then_completion (test_guard.Advisory.test_r11_launch_then_begin_then_completion) ... ok
+test_r11_nudge_speaks_when_nothing_runs (test_guard.Advisory.test_r11_nudge_speaks_when_nothing_runs) ... ok
+test_r11_older_claude_code_without_background_tasks_falls_back_to_the_file_scan (test_guard.Advisory.test_r11_older_claude_code_without_background_tasks_falls_back_to_the_file_scan) ... ok
+test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports (test_guard.FinishGate.test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports) ... ok
+test_r11_the_tail_becomes_the_newest_section_next_time (test_guard.FinishGate.test_r11_the_tail_becomes_the_newest_section_next_time) ... ok
+test_r11_begin_force_overrides_and_r15_wake_names_the_tasks (test_guard.Force.test_r11_begin_force_overrides_and_r15_wake_names_the_tasks) ... ok
+test_r11_never_forced_while_compaction_is_on (test_guard.Force.test_r11_never_forced_while_compaction_is_on) ... ok
+test_r11_start_gate_forced_at_ninety_percent_names_tasks (test_guard.Force.test_r11_start_gate_forced_at_ninety_percent_names_tasks) ... ok
+test_r15_forced_at_ninety_percent_when_compaction_is_off (test_guard.Force.test_r15_forced_at_ninety_percent_when_compaction_is_off) ... ok
+test_r11_internal_tasks_do_not_hold_a_tide (test_guard.StartGate.test_r11_internal_tasks_do_not_hold_a_tide) ... ok
+test_r11_nothing_running_starts_as_before (test_guard.StartGate.test_r11_nothing_running_starts_as_before) ... ok
+test_r11_stop_does_not_start_a_tide_while_a_task_runs (test_guard.StartGate.test_r11_stop_does_not_start_a_tide_while_a_task_runs) ... ok
+test_r12_divider_matches_behaviour (test_texts.R12Texts.test_r12_divider_matches_behaviour) ... ok
+test_r12_notice_matches_behaviour (test_texts.R12Texts.test_r12_notice_matches_behaviour) ... ok
+test_r12_readme_and_command_help (test_texts.R12Texts.test_r12_readme_and_command_help) ... ok
+test_r12_wake_and_intro_and_status (test_texts.R12Texts.test_r12_wake_and_intro_and_status) ... ok
+test_mut_digest_not_meta_or_unframed (test_validate.R7Mutations.test_mut_digest_not_meta_or_unframed) ... ok
+test_mut_duplicate_tool_use_id (test_validate.R7Mutations.test_mut_duplicate_tool_use_id) ... ok
+test_mut_first_message_assistant (test_validate.R7Mutations.test_mut_first_message_assistant) ... ok
+test_mut_last_assistant_has_tool_use (test_validate.R7Mutations.test_mut_last_assistant_has_tool_use) ... ok
+test_mut_orphan_result (test_validate.R7Mutations.test_mut_orphan_result) ... ok
+test_mut_result_not_in_next_message (test_validate.R7Mutations.test_mut_result_not_in_next_message) ... ok
+test_mut_text_before_result (test_validate.R7Mutations.test_mut_text_before_result) ... ok
+test_mut_thinking_in_a_digest_record (test_validate.R7Mutations.test_mut_thinking_in_a_digest_record) ... ok
+test_mut_thinking_in_a_record_tides_wrote (test_validate.R7Mutations.test_mut_thinking_in_a_record_tides_wrote) ... ok
+test_mut_tool_block_in_a_record_tides_wrote (test_validate.R7Mutations.test_mut_tool_block_in_a_record_tides_wrote) ... ok
+test_mut_unanswered_tool_use (test_validate.R7Mutations.test_mut_unanswered_tool_use) ... ok
+test_r7_every_fixture_successor_passes (test_validate.R7ValidatePasses.test_r7_every_fixture_successor_passes) ... ok
+test_r7_raw_fixtures_pass_too (test_validate.R7ValidatePasses.test_r7_raw_fixtures_pass_too) ... ok
+
+----------------------------------------------------------------------
+Ran 48 tests in 0.424s
+
+OK
+module under test: /Users/skylardeture/Desktop/Tides/build_2026-11-12/tides/scripts/tides.py
+temp home: (a temp folder)
