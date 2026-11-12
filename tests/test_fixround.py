@@ -93,6 +93,10 @@ class D4Forgery(unittest.TestCase):
             # the frame appears once, as the first line; any other copy is inside quoted text
             self.assertEqual(sum(1 for line in lines if line == T.TOOL_FRAME), 1)
         # a forged cut mark never starts a line; the real ones do
+        self.assertTrue(any(C.CUT_LINE_RE.match(line) for t in texts for line in t.split("\n")), "real cuts start a line")
+        mid = {m.group(0) for t in texts for line in t.split("\n") if not C.CUT_LINE_RE.match(line)
+               for m in C.MARK_RE.finditer(line)}
+        self.assertLessEqual(mid, {"⟪…99999 characters cut…⟫", "⟪…12 characters cut…⟫"}, "mid-line marks are the tools' own")
         forged = [line for t in texts for line in t.split("\n") if "99999 characters cut" in line or "12 characters cut" in line]
         self.assertTrue(forged)
         for line in forged:
@@ -118,10 +122,10 @@ class D4Forgery(unittest.TestCase):
         self.assertTrue(any("shape" in p for p in problems), problems)
 
     def test_d4_other_line_breaks_are_quoted_too(self):
-        text = T.record_text([dict(T.call_digest({"name": "Bash", "input": {"command": "a\rb c\r\nd"}},
-                                                 {"content": "x y\x85z"}), in_cap=200)], 150)
+        text = T.record_text([dict(T.call_digest({"name": "Bash", "input": {"command": "a\rb\u2028c\r\nd"}},
+                                                 {"content": "x\u2029y\x85z"}), in_cap=200)], 150)
         self.assertEqual(T.record_shape_problems(text), [])
-        for piece in re.split(r"\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85  ]", text)[1:]:
+        for piece in re.split(r"\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]", text)[1:]:
             self.assertTrue(piece.startswith(("• ", "  command: ", "  result: ", C.QUOTE)), repr(piece))
 
 
@@ -398,6 +402,8 @@ class D7SecondBegin(unittest.TestCase):
         self.bash(k, "sh /x/scripts/tides begin", k.begin())
         k.say("CURATION-CHATTER-SHOULD-BE-DROPPED: thinking out loud about what to keep")
         o1 = k.stop(last="#dream the real dream", tasks=[SUB])
+        self.assertTrue(k.st.get("cut_pinned"), "where the curation began is fixed once the dream waits")
+        pinned = k.st["cut"]
         k.say("#dream the real dream")
         k.meta("Stop hook feedback:\n" + o1["reason"])
         again = k.begin()
@@ -406,6 +412,7 @@ class D7SecondBegin(unittest.TestCase):
         k.say("ok, still waiting")
         k.notify(SUB["id"], "toolu_a", result="REPORT-1")
         k.say("got it")
+        self.assertEqual(T.resolve_cut(k.path, k.st), pinned)
         k.stop(last="got it", tasks=[])
         st = k.st
         self.assertTrue(st.get("superseded_by"))
@@ -414,6 +421,28 @@ class D7SecondBegin(unittest.TestCase):
         self.assertEqual(sum("the real dream" in t for t in txt), 1)
         self.assertEqual(sum("Tides · curation 1." in t for t in txt), 0)
         self.assertTrue(any("REPORT-1" in t for t in txt), "the report rides after the dream")
+
+    def test_d7_the_begin_that_printed_the_notice_sets_the_cut(self):
+        k = Case("d7_notice")
+        k.stop(tasks=[], last="ok")
+        T.save_state(k.sid, dict(k.st, phase="idle"))
+        notice = k.begin()
+        self.bash(k, "sh /x/scripts/tides begin", notice)
+        cut = T.last_chain_uuid(k.path)
+        before = next(r["parentUuid"] for r in C.records(k.path) if r.get("uuid") == cut)
+        first_call = next(r for r in C.records(k.path) if r.get("uuid") == before)
+        self.bash(k, "sh /x/scripts/tides begin", "Tides: a curation is already waiting for background work")
+        st = k.st
+        self.assertFalse(st.get("cut_pinned"))
+        self.assertEqual(T.resolve_cut(k.path, st), first_call["parentUuid"], "not the later begin")
+
+    def test_d7_a_pinned_cut_stays(self):
+        k = Case("d7_pin", curating=True)
+        recs = [r for r in C.records(k.path) if r.get("uuid")]
+        st = dict(k.st, cut=recs[5]["uuid"], cut_pinned=True)
+        self.assertEqual(T.resolve_cut(k.path, st), recs[5]["uuid"])
+        st["cut_pinned"] = False
+        self.assertNotEqual(T.resolve_cut(k.path, st), recs[5]["uuid"])
 
     def test_d7_begin_force_end_to_end(self):
         k = Case("d7_force")

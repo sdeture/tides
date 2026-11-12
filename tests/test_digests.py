@@ -543,7 +543,9 @@ class R10Legacy(unittest.TestCase):
             self.assertFalse(s3[s]["D"], "no digests are invented for 0.3.x sections")
         self.assertEqual([(r["tides"]["id"], C.text_of(r)) for r in s4[2]["M"]], before[2], "carried a second time")
         self.assertFalse(s4[2]["D"])
-        self.assertIn("set aside", C.text_of(s4[2]["div"]), "its divider still says tool calls were set aside")
+        self.assertIn("tool calls, results and thinking set aside", C.text_of(s4[2]["div"]),
+                      "its divider still says tool calls were set aside")
+        self.assertNotIn("quoted record", C.text_of(s3[1]["div"]) + C.text_of(s4[2]["div"]), "and claims no records")
         self.assertTrue(s3[3]["D"] and s4[4]["D"], "sections built by the new code have digests")
         for p in L.paths[1:]:
             self.assertEqual(T.validate(p), [], p.name)

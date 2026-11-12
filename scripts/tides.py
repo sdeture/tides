@@ -376,7 +376,7 @@ NO_RESULT = "⟪no result recorded⟫"
 EMPTY_RESULT = "⟪empty⟫"
 BLOCKS_MARK = "⟪{n} {kind} block{s}⟫"           # a non-text part of a result (an image, a document, ...)
 BLOCK_SEP = " ⟪next text block⟫ "               # between the text blocks of one result
-LINE_BREAK_RE = re.compile(r"\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85  ]")
+LINE_BREAK_RE = re.compile(r"\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
 FIELD_LABELS = ("command", "file", "pattern", "path", "url", "query", "agent", "skill", "input", "result")
 SHAPE_RE = re.compile(r"• |  (?:%s): |%s|  ⟪…\d+ characters cut…⟫" % ("|".join(FIELD_LABELS), re.escape(QUOTE)))
 DESC_CHARS = 80              # a call's `description` input
@@ -407,7 +407,7 @@ def est_record_tokens(text):
 def _joins(ch):
     """A character that belongs to the one before it: a joiner, a variation selector, a skin tone, a combining mark."""
     o = ord(ch)
-    return (ch == "‍" or 0xFE00 <= o <= 0xFE0F or 0x1F3FB <= o <= 0x1F3FF or 0xE0020 <= o <= 0xE007F
+    return (ch == "\u200d" or 0xFE00 <= o <= 0xFE0F or 0x1F3FB <= o <= 0x1F3FF or 0xE0020 <= o <= 0xE007F
             or unicodedata.category(ch) in ("Mn", "Me", "Mc"))
 
 
@@ -419,10 +419,10 @@ def cut_points(s, cap):
         return None
     h = (cap + 1) // 2
     t = cap - h
-    while 0 < h < len(s) and (_joins(s[h]) or s[h - 1] == "‍"):
+    while 0 < h < len(s) and (_joins(s[h]) or s[h - 1] == "\u200d"):
         h -= 1
     p = len(s) - t
-    while h < p < len(s) and (_joins(s[p]) or s[p - 1] == "‍"):
+    while h < p < len(s) and (_joins(s[p]) or s[p - 1] == "\u200d"):
         p += 1
     return h, len(s) - p
 
@@ -1553,6 +1553,8 @@ def resolve_cut(path, st):
     recs = read_records(path)
     n = int(st.get("curation", 0)) + 1
     by = {r.get("uuid"): r for r in recs if r.get("uuid")}
+    if st.get("cut_pinned") and st.get("cut") in by:
+        return st["cut"]
     if st.get("trigger") == "stop":
         marker = f"Tides · curation {n}."
         for r in reversed(recs):
@@ -1560,8 +1562,6 @@ def resolve_cut(path, st):
             if (r.get("type") == "user" and r.get("isMeta") and isinstance(c, str)
                     and c.startswith("Stop hook feedback") and marker in c):
                 return r.get("parentUuid")
-    if st.get("cut_pinned") and st.get("cut") in by:
-        return st["cut"]
     if st.get("trigger") == "begin":
         active = active_records(recs)
         notice_of = {}
