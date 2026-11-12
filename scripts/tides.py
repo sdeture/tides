@@ -1224,6 +1224,9 @@ def hook_post_tool(inp, cfg):
     is_due, ctx, base = due(path, st, cfg)
     S, C, _ = limits(path, st, cfg)
     at, _ = next_tide(path, st, cfg, base)
+    if is_due and live_subagents(path):
+        save_state(sid, st)
+        return   # agents are still working; a tide would cut them off. Ask again after they report.
     nudge_at = min(at + int(S * (cfg["nudge_ratio"] - 1)), max(at, int(0.85 * (st.get("window") or 200000))))
     if is_due and ctx >= nudge_at and ctx - int(st.get("nudged_at") or 0) >= S // 4:
         st["nudged_at"] = ctx
@@ -1233,6 +1236,45 @@ def hook_post_tool(inp, cfg):
               f"`{CLI} begin`. Your task will be right here when you wake."}})
     else:
         save_state(sid, st)
+
+
+def live_subagents(path, fresh=1800):
+    """Background agents this conversation started that have not finished. A tide switches the conversation to
+    a new session, and an agent still working is cut off from it: its report never arrives (found 2026-11-12,
+    twice in one day). An agent counts as live when its transcript's last assistant record is not an end_turn
+    and the file was written within `fresh` seconds."""
+    out = []
+    try:
+        d = Path(str(path)[:-len(".jsonl")]) / "subagents"
+        for f in sorted(d.glob("agent-*.jsonl")):
+            if time.time() - f.stat().st_mtime > fresh:
+                continue
+            with open(f, "rb") as fh:
+                fh.seek(max(0, f.stat().st_size - 200000))
+                tail = fh.read().decode("utf-8", "replace").splitlines()
+            stop = None
+            for line in reversed(tail):
+                try:
+                    r = json.loads(line)
+                except Exception:
+                    continue
+                m = r.get("message") or {}
+                if m.get("role") == "assistant":
+                    stop = m.get("stop_reason")
+                    break
+                if m.get("role") == "user":
+                    stop = "tool_use"    # a tool result came back and the agent has not answered yet
+                    break
+            if stop != "end_turn":
+                desc = ""
+                try:
+                    desc = json.loads(f.with_suffix("").with_suffix(".meta.json").read_text()).get("description", "")
+                except Exception:
+                    pass
+                out.append(desc or f.stem)
+    except Exception as e:
+        log("live_subagents", repr(e))
+    return out
 
 
 # ───────────────────────────── commands Claude or the person runs ──────────
@@ -1246,13 +1288,20 @@ def current_session():
     return sid, path
 
 
-def cmd_begin(cfg):
+def cmd_begin(cfg, force=False):
     sid, path = current_session()
     if not path:
         return print("Tides: couldn't find this conversation's transcript.")
     st = load_state(sid)
     cfg = config(st)
     st.setdefault("lineage", sid)
+    live = [] if force else live_subagents(path)
+    if live:
+        return print("Tides: not starting. %d background agent%s still working (%s), and a tide would cut "
+                     "%s off from this conversation, so the report would never arrive. Wait for the report, "
+                     "then run begin again. To curate anyway and lose them: `%s begin --force`."
+                     % (len(live), "" if len(live) == 1 else "s", "; ".join(live),
+                        "it" if len(live) == 1 else "them", CLI))
     start_curation(sid, path, st, "begin")
     print(notice_text(path, st, cfg))
 
@@ -1394,7 +1443,7 @@ def main(argv):
     if cmd == "keep":
         cmd_keep(argv[2:], cfg)
     elif cmd == "begin":
-        cmd_begin(cfg)
+        cmd_begin(cfg, force="--force" in argv[2:])
     elif cmd == "later":
         cmd_later(cfg)
     elif cmd == "set":
