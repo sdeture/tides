@@ -43,7 +43,7 @@ MUTANTS = [
     ("results never left out (skip straight to inputs)",
      'c["drop_result"] = True\n            redo(i)', "pass"),
     ("inputs never shortened",
-     'c["in_cap"] = SHORT_INPUT_CHARS\n            redo(i)', "pass"),
+     'c["in_cap"] = to\n                redo(i)', "pass"),
     ("no slack before cutting",
      "if len(s) <= cap + CUT_SLACK:", "if len(s) <= cap:"),
     ("carried sections lose their records",
@@ -150,7 +150,15 @@ FIXROUND = [
     ("L SessionStart forgets the transcript path", 'st["path"] = str(inp["transcript_path"])', "pass"),
     ("W a state sized by the old rule is never re-sized", 'if st.get("window_rule") == WINDOW_RULE or cfg.get("window_tokens") else None', "if True else None"),
 ]
-MUTANTS = MUTANTS + GRADER + FIXROUND
+ORDER = [   # the coordinator's budget order (11-12): results to 30, inputs to 100, results go, inputs to 60, lines
+    ("O results go before inputs reach 100 (the fix round's order)", "    shorten_inputs(MID_INPUT_CHARS)\n", ""),
+    ("O inputs go to 60 before any result goes", "shorten_inputs(MID_INPUT_CHARS)", "shorten_inputs(SHORT_INPUT_CHARS)"),
+    ("O inputs never reach 60", "    shorten_inputs(SHORT_INPUT_CHARS)\n", ""),
+    ("O the middle input step is 60", "MID_INPUT_CHARS = 100", "MID_INPUT_CHARS = 60"),
+    ("O inputs shorten newest first", "        for i, j in order:\n            if total <= budget:\n                break\n            c = recs[i][\"calls\"][j]\n            if c[\"in_cap\"] > to:",
+     "        for i, j in order[::-1]:\n            if total <= budget:\n                break\n            c = recs[i][\"calls\"][j]\n            if c[\"in_cap\"] > to:"),
+]
+MUTANTS = MUTANTS + GRADER + FIXROUND + ORDER
 
 
 def run(name, old, new):

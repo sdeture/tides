@@ -1,0 +1,7 @@
+Budget order change (coordinator, 11-12): the new and changed tests on dd4775c, before the change.
+test_r4_defaults_and_the_record_rate_are_pinned (test_digests.R4Budget.test_r4_defaults_and_the_record_rate_are_pinned) ... ERROR
+test_r4_inputs_shorten_to_100_before_any_result_goes (test_digests.R4Budget.test_r4_inputs_shorten_to_100_before_any_result_goes) ... FAIL
+test_r4_results_go_oldest_first (test_digests.R4Budget.test_r4_results_go_oldest_first) ... FAIL
+Coordinator's order (11-12): results shrink to 30, then inputs to 100, and only then do results go. ... FAIL
+Ran 96 tests in 1.220s
+FAILED (failures=3, errors=1)

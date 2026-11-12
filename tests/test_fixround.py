@@ -241,6 +241,42 @@ class D5Notice(unittest.TestCase):
         self.assertEqual(int(d_out.group(1)) if d_out else 0, out, "divider and notice agree")
         return stay, total, cap, out, lines_out
 
+    def test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go(self):
+        """Coordinator's order (11-12): results shrink to 30, then inputs to 100, and only then do results go.
+        Across the shares where that happens, the notice still says every result stays."""
+        hits = 0
+        for k in range(0, 21):
+            share = 0.058 + k * 0.0005
+            stay, total, cap, out, lines_out = self.check(f"d5_order_{k}", share)
+            _, calls, _ = self.numbers(f"d5_order_{k}b", share)
+            cut100 = [v for g in calls for _, v in g["fields"][:-1]
+                      if C.MARK_RE.search(v) and len(C.MARK_RE.sub("", v)) == 100]
+            if cut100 and stay == total:
+                hits += 1
+        self.assertGreater(hits, 0, "some share shortens an input to 100 while every result stays")
+
+    def test_inputs_shorten_to_100_oldest_first(self):
+        def call(k):
+            use = {"type": "tool_use", "id": f"toolu_o{k}", "name": "Bash",
+                   "input": {"command": f"echo {k} " + "x" * 300}}
+            return use, {"type": "tool_result", "tool_use_id": f"toolu_o{k}", "content": "ok"}
+        groups = [({"id": f"m{k}", "ts": None}, [call(k)]) for k in range(3)]
+
+        def run_at(budget_tokens=None, **over):
+            cfg = dict(T.DEFAULTS, tool_share=0.10, **over)
+            section = 10 ** 6
+            if budget_tokens is not None:
+                cfg["tool_share"] = (budget_tokens + 0.5) / section
+            out, _ = T.build_digests(json.loads(json.dumps(groups)), cfg, section)
+            return out, sum(T.est_record_tokens(d["text"]) for d in out)
+
+        _, full = run_at()
+        _, all100 = run_at(tool_input_chars=100)
+        one = (full - all100) // 3
+        out, cost = run_at(full - one)
+        kept = [len(C.MARK_RE.sub("", parse_record(d["text"])[0]["fields"][0][1])) for d in out]
+        self.assertEqual(kept, [100, 200, 200], "the oldest input is shortened first, and only as far as needed")
+
     def test_d5_notice_numbers_match_what_the_curation_writes(self):
         seen = set()
         for share in (0.10, 0.06, 0.05, 0.04, 0.02, 0.012):

@@ -330,7 +330,7 @@ class R4Budget(unittest.TestCase):
     def test_r4_results_go_oldest_first(self):
         Dfull, full = self.full_cost()
         full_calls = [c for r in Dfull for c in parse_record(C.text_of(r))]
-        _, _, _, at30 = _budget_run("r4_cost30", 0.10, tool_result_chars=30)
+        _, _, _, at30 = _budget_run("r4_cost30", 0.10, tool_result_chars=30, tool_input_chars=100)
         for share_tokens in (at30 - 30, at30 - 80):
             _, D, div, cost = _budget_run(f"r4_order_{share_tokens}", (share_tokens + 0.5) / 20000)
             self.assertLessEqual(cost, share_tokens)
@@ -346,8 +346,29 @@ class R4Budget(unittest.TestCase):
                                          "an older result stays only if leaving it out would save nothing")
             n = re.search(r"(\d+) results? left out", div)
             self.assertEqual(int(n.group(1)), sum(dropped), "the divider counts exactly the results shown as left out")
+            for c in calls:     # results go before any input is shortened below 100
+                for label, v in c["fields"][:-1]:
+                    if C.MARK_RE.search(v):
+                        self.assertEqual(len(C.MARK_RE.sub("", v)), 100, label)
 
-    def test_r4_over_budget_order_results_then_inputs_then_lines(self):
+    def test_r4_inputs_shorten_to_100_before_any_result_goes(self):
+        Dfull, _ = self.full_cost()
+        full_calls = [c for r in Dfull for c in parse_record(C.text_of(r))]
+        _, _, _, at30 = _budget_run("r4_in_cost30", 0.10, tool_result_chars=30)
+        _, _, _, at30_100 = _budget_run("r4_in_cost30_100", 0.10, tool_result_chars=30, tool_input_chars=100)
+        self.assertLess(at30_100, at30, "the fixture must have an input longer than 100 characters")
+        _, D, div, cost = _budget_run("r4_in_100", (at30_100 + 0.5) / 20000)
+        self.assertLessEqual(cost, at30_100)
+        self.assertFalse(any("⟪result not kept" in C.text_of(r) for r in D), "no result goes while inputs can shorten")
+        calls = [c for r in D for c in parse_record(C.text_of(r))]
+        self.assertEqual(len(calls), len(full_calls))
+        cut_inputs = [(label, v) for c in calls for label, v in c["fields"][:-1] if C.MARK_RE.search(v)]
+        self.assertTrue(cut_inputs)
+        for label, v in cut_inputs:
+            self.assertEqual(len(C.MARK_RE.sub("", v)), 100, label)
+        self.assertRegex(div, r"results shown up to 30 characters \(budget\)")
+
+    def test_r4_over_budget_order_results_inputs_results_inputs_lines(self):
         Dfull, full = self.full_cost()
         full_calls = [c for r in Dfull for c in parse_record(C.text_of(r))]
         _, D, div, cost = _budget_run("r4_tight", 0.012)
@@ -383,6 +404,8 @@ class R4Budget(unittest.TestCase):
         self.assertEqual(T.DESC_CHARS, 80)
         self.assertEqual(T.RECORD_CHARS_PER_TOKEN, 2.1)
         self.assertEqual(tuple(T.RESULT_CAP_STEPS), (100, 60, 30))
+        # then inputs to 100 (description stays up to 80), results whole, inputs to 60, lines (coordinator, 11-12)
+        self.assertEqual((T.MID_INPUT_CHARS, T.SHORT_INPUT_CHARS), (100, 60))
         for text in ("x" * 21, "y" * 2100, "⟦" + "z" * 999):
             self.assertEqual(T.est_record_tokens(text), real_tokens(text))
 

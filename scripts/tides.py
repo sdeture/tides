@@ -380,7 +380,8 @@ LINE_BREAK_RE = re.compile(r"\r\n|[\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029]")
 FIELD_LABELS = ("command", "file", "pattern", "path", "url", "query", "agent", "skill", "input", "result")
 SHAPE_RE = re.compile(r"• |  (?:%s): |%s|  ⟪…\d+ characters cut…⟫" % ("|".join(FIELD_LABELS), re.escape(QUOTE)))
 DESC_CHARS = 80              # a call's `description` input
-SHORT_INPUT_CHARS = 60       # inputs, when a section's records are over budget
+MID_INPUT_CHARS = 100        # over budget, after results reach their last step: inputs, oldest first
+SHORT_INPUT_CHARS = 60       # and after results have gone: inputs again, oldest first
 RESULT_CAP_STEPS = (100, 60, 30)   # over budget, every result of the section shrinks to these in turn, before any goes
 CUT_SLACK = 24               # a field this little over its cap stays whole: cutting it would save nothing
 MAX_TOOL_SHARE = 0.10
@@ -524,8 +525,9 @@ def tool_settings(cfg):
 def build_digests(groups, cfg, section):
     """[(anchor unit, [(tool_use, tool_result)])] -> ([{after, ts, text}], stats). The budget is a share of the
     section, in real tokens (est_record_tokens). Over it: first every result of the section is shown shorter,
-    evenly, at each of RESULT_CAP_STEPS in turn; then results are left out, oldest first (only where that makes the
-    line shorter); then inputs shrink to SHORT_INPUT_CHARS, oldest first; then whole lines go, oldest first."""
+    evenly, at each of RESULT_CAP_STEPS in turn; then inputs shrink to MID_INPUT_CHARS, oldest first (a description
+    stays up to DESC_CHARS); then results are left out, oldest first (only where that makes the line shorter);
+    then inputs shrink to SHORT_INPUT_CHARS, oldest first; then whole lines go, oldest first."""
     in_cap, res_cap, share = tool_settings(cfg)
     budget = int(section * share)
     recs = []
@@ -559,6 +561,16 @@ def build_digests(groups, cfg, section):
                 c["res_cap"] = step
         costs[:] = [cost(r) for r in recs]
         total = sum(costs)
+    def shorten_inputs(to):
+        for i, j in order:
+            if total <= budget:
+                break
+            c = recs[i]["calls"][j]
+            if c["in_cap"] > to:
+                c["in_cap"] = to
+                redo(i)
+
+    shorten_inputs(MID_INPUT_CHARS)
     for i, j in order:
         if total <= budget:
             break
@@ -566,13 +578,7 @@ def build_digests(groups, cfg, section):
         if c["result"] is not None and len(RESULT_NOT_KEPT.format(k=len(c["result"]))) < len(render_result(c, c["res_cap"])):
             c["drop_result"] = True
             redo(i)
-    for i, j in order:
-        if total <= budget:
-            break
-        c = recs[i]["calls"][j]
-        if c["in_cap"] > SHORT_INPUT_CHARS:
-            c["in_cap"] = SHORT_INPUT_CHARS
-            redo(i)
+    shorten_inputs(SHORT_INPUT_CHARS)
     lines_out = 0
     for i, j in order:
         if total <= budget:
