@@ -706,6 +706,11 @@ class LiveFindings(unittest.TestCase):
 
     def test_a_task_report_that_arrived_mid_curation_follows_the_dream(self):
         k, note = self.race_case("live_race_carry")
+        # the same report written twice (a re-delivered queue entry) is carried once
+        k.append([{"parentUuid": "3bbbbbbb-0000-4000-8000-000000000001", "isSidechain": False, "type": "attachment",
+                   "uuid": "3bbbbbbb-0000-4000-8000-000000000002", "timestamp": G.now_iso(), "sessionId": k.sid,
+                   "attachment": {"type": "queued_command", "prompt": note, "commandMode": "task-notification"}}])
+        k.leaf = lambda: "3bbbbbbb-0000-4000-8000-000000000002"
         k.say("#dream race dream")
         k.stop(last="#dream race dream", tasks=[])
         st = k.st
