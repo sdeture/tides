@@ -1,0 +1,15 @@
+Live R7/R8 runs, 2026-11-12 afternoon, Claude Code 2.1.322, tests/live/r8_wakes.py (transcripts deleted after).
+Per run: successor of tools_dense built with records on (tool_share 10%), resumed with the wake text, then 4 turns.
+tool_uses_per_turn = [wake, token (no tools asked), rerun-on-VERSION, grep TODO, write+read].
+Leaks checked in every assistant text: the record frame, record lines (• Name (ok|error|no result) / "  command: "...), cut marks.
+
+haiku run 0 (--keep, inspected then deleted): pass  tool_uses [0,0,1,3,2]  leaks []  token: "`BUILD-ID: KESTREL-4471-ZEPHYR`"
+haiku run 0: pass  tool_uses [0,0,1,3,2]  leaks []
+haiku run 1: pass  tool_uses [0,0,1,4,2]  leaks []
+haiku run 2: pass  tool_uses [0,0,1,2,2]  leaks []
+haiku run 3: pass  tool_uses [0,0,1,3,2]  leaks []
+PASSED 5 of 5 (haiku)
+fable run 0: pass  tool_uses [0,0,1,2,2]  leaks []  token: "`BUILD-ID: KESTREL-4471-ZEPHYR` That's quoted from the record of the `cat build/ID.txt` call in the first turn."
+fable run 1: pass  tool_uses [1,0,1,1,2]  leaks []
+PASSED 2 of 2 (fable, --model fable)
+Every resume and every turn returned without an API error (35 calls).
