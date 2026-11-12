@@ -19,7 +19,9 @@ RESULT_NOT_KEPT = re.compile(r"^⟪result not kept: (\d+) characters⟫$")
 
 
 def parse_record(text):
-    """A digest record's text -> [{"name", "status", "description", "fields": [(label, value)]}]."""
+    """A digest record's text -> [{"name", "status", "description", "fields": [(label, value)]}], with every quoted
+    value decoded back to what it shows: the line prefix of quoted text and the line break before a real cut mark
+    are part of the record's shape, not of the value. Any line outside that shape fails the test."""
     lines = text.split("\n")
     assert lines[0].startswith(C.FRAME_PREFIX), lines[0]
     calls, cur, field = [], None, None
@@ -32,10 +34,14 @@ def parse_record(text):
             label, value = line[2:].split(": ", 1)
             field = [label, value]
             cur["fields"].append(field)
-        elif field is not None:
-            field[1] += "\n" + line
+        elif line.startswith(C.QUOTE) or C.CUT_LINE_RE.match(line):
+            add = ("\n" + line[len(C.QUOTE):]) if line.startswith(C.QUOTE) else line[2:]
+            if field is not None:
+                field[1] += add
+            else:
+                cur["head"] += add
         else:
-            cur["head"] += "\n" + line
+            raise AssertionError("a line outside the record's shape: " + repr(line))
     for c in calls:
         m = HEAD_RE.match(c["head"])
         assert m, c["head"]
@@ -197,12 +203,25 @@ class R2Exact(unittest.TestCase):
         self.assertLess(len(out), len(s))
 
     def test_r2_no_character_outside_originals_and_constants(self):
+        # every line is one of the record's fixed shapes, and once the fixed parts are taken away, what is left
+        # of each value is pieces of the original call or result
         path, _ = first_curation("r2b")
-        self.assertTrue(C.digest_records(path))
-        for d in C.digest_records(path):
-            text = C.text_of(d)
-            self.assertNotIn("…]", text, "no other cut notation")
-            self.assertNotIn("[…]", text)
+        D = C.digest_records(path)
+        self.assertTrue(D)
+        originals = [desc for _, calls in EXPECTED for _, _, desc, _, _, _ in calls if desc]
+        originals += [v for _, calls in EXPECTED for c in calls for _, v in c[3]]
+        originals += [c[4] for _, calls in EXPECTED for c in calls if c[4] is not None]
+        fixed = re.compile(r"⟪…\d+ characters cut…⟫|⟪result not kept: \d+ characters⟫|⟪no result recorded⟫|⟪empty⟫|"
+                           r"( ?⟪\d+ [\w ]+ blocks?⟫)+$")
+        pieces = 0
+        for d in D:
+            for g in parse_record(C.text_of(d)):
+                for label, shown in ([("description", g["description"])] if g["description"] else []) + g["fields"]:
+                    for piece in fixed.split(shown):
+                        if piece and piece.strip():
+                            pieces += 1
+                            self.assertTrue(any(piece in o for o in originals), f"{g['name']} {label}: {piece[:60]!r}")
+        self.assertGreater(pieces, 20)
 
 
 class R3KeptMemories(unittest.TestCase):
@@ -220,7 +239,7 @@ class R3KeptMemories(unittest.TestCase):
         K = [r for r in C.records(on.path) if C.tier(r) == "K"]
         self.assertTrue(K)
         for r in K:
-            self.assertNotIn("⟦tides · record of the tool calls", C.text_of(r))
+            self.assertNotIn(C.FRAME_PREFIX, C.text_of(r))
             self.assertIsNone(C.MARK_RE.search(C.text_of(r)))
         self.assertFalse(any(PLANTED in C.text_of(r) for r in K))
 
@@ -235,6 +254,8 @@ class R1bCarry(unittest.TestCase):
         L.curate(T, tag="c2")
         s2 = sections(L.path)
         self.assertEqual([C.text_of(r) for r in s2[1]["D"]], d1, "carried byte-identical")
+        self.assertIn("quoted record", C.text_of(s2[1]["div"]), "a carried section's divider still says it has records")
+        self.assertNotIn("set aside at curation", C.text_of(s2[1]["div"]))
         self.assertEqual([r["tides"]["after"] for r in s2[1]["D"]], [r["tides"]["after"] for r in s1[1]["D"]])
         self.assertTrue(s2[2]["D"], "the new section has its own digests")
         d2 = [C.text_of(r) for r in s2[2]["D"]]
@@ -245,7 +266,7 @@ class R1bCarry(unittest.TestCase):
         allK = "\n".join(C.text_of(r) for r in C.records(L.path) if C.tier(r) == "K")
         for t in d1:
             self.assertNotIn(t, allK)
-        self.assertNotIn("⟦tides · record", allK)
+        self.assertNotIn(C.FRAME_PREFIX, allK)
         # each carried record still sits right after the unit it follows
         for sec in s3.values():
             ids = {r["uuid"]: r for r in sec["M"]}
@@ -259,7 +280,13 @@ def _budget_run(name, share, section=20000, **over):
     path, rep = first_curation(name, tool_share=share, section_tokens=section, **over)
     D = C.digest_records(path)
     div = next(r for r in C.records(path) if C.tier(r) == "div" and "messages only" in C.text_of(r))
-    return path, D, C.text_of(div), sum(getattr(T, "est_record_tokens", T.est_tokens)(C.text_of(r)) for r in D)
+    return path, D, C.text_of(div), sum(real_tokens(C.text_of(r)) for r in D)
+
+
+def real_tokens(text):
+    """A record's cost as the spec now defines it (R4, amended 11-12): real tokens at the calibrated record
+    rate, 2.1 characters per token (+4 for the record). Computed here, not by the module under test."""
+    return int(len(text) / 2.1) + 4
 
 
 class R4Budget(unittest.TestCase):
@@ -269,7 +296,8 @@ class R4Budget(unittest.TestCase):
 
     def test_r4_under_budget_nothing_dropped(self):
         _, D, div, cost = _budget_run("r4_under", 0.10)
-        self.assertNotRegex(div, r"left out")
+        self.assertTrue(D, "there must be records for nothing to be dropped from")
+        self.assertNotRegex(div, r"left out|budget")
         self.assertFalse(any("⟪result not kept" in C.text_of(r) for r in D))
 
     def test_r4_at_budget_nothing_dropped_one_under_something_is(self):
@@ -277,18 +305,51 @@ class R4Budget(unittest.TestCase):
         self.assertLess(full, 2000, "fixture digests must fit under 10% of a 20k section for this test")
         _, D, div, cost = _budget_run("r4_at", (full + 0.5) / 20000)
         self.assertEqual(cost, full)
-        self.assertNotRegex(div, r"left out")
+        self.assertNotRegex(div, r"left out|budget")
         _, D2, div2, cost2 = _budget_run("r4_at_minus", (full - 0.5) / 20000)
         self.assertLessEqual(cost2, full - 1)
-        self.assertTrue(any("⟪result not kept" in C.text_of(r) for r in D2))
-        self.assertRegex(div2, r"1 result left out")
-        last = parse_record(C.text_of(D2[-1]))[-1]
-        self.assertNotRegex(last["fields"][-1][1], RESULT_NOT_KEPT, "the newest result stays")
+        # one token over: every result gets the next smaller cap; none is dropped
+        self.assertFalse(any("⟪result not kept" in C.text_of(r) for r in D2))
+        self.assertRegex(div2, r"results shown up to 100 characters \(budget\)")
+
+    def test_r4_results_shrink_evenly_before_any_is_dropped(self):
+        Dfull, full = self.full_cost()
+        full_calls = [c for r in Dfull for c in parse_record(C.text_of(r))]
+        for step in (100, 60, 30):
+            _, _, _, at_step = _budget_run(f"r4_cost_{step}", 0.10, tool_result_chars=step)
+            _, D, div, cost = _budget_run(f"r4_even_{step}", (at_step + 0.5) / 20000)
+            self.assertLessEqual(cost, at_step)
+            self.assertFalse(any("⟪result not kept" in C.text_of(r) for r in D), step)
+            calls = [c for r in D for c in parse_record(C.text_of(r))]
+            self.assertEqual(len(calls), len(full_calls), "no line goes while results can still shrink")
+            for c in calls:
+                res = TRAILING_PLACEHOLDERS.sub("", c["fields"][-1][1])
+                self.assertLessEqual(len(C.MARK_RE.sub("", res)), step + T.CUT_SLACK, c["head"])
+            self.assertRegex(div, rf"results shown up to {step} characters \(budget\)")
+
+    def test_r4_results_go_oldest_first(self):
+        Dfull, full = self.full_cost()
+        full_calls = [c for r in Dfull for c in parse_record(C.text_of(r))]
+        _, _, _, at30 = _budget_run("r4_cost30", 0.10, tool_result_chars=30)
+        for share_tokens in (at30 - 30, at30 - 80):
+            _, D, div, cost = _budget_run(f"r4_order_{share_tokens}", (share_tokens + 0.5) / 20000)
+            self.assertLessEqual(cost, share_tokens)
+            calls = [c for r in D for c in parse_record(C.text_of(r))]
+            self.assertEqual(len(calls), len(full_calls), "no line is dropped while results can still go")
+            dropped = [bool(RESULT_NOT_KEPT.match(c["fields"][-1][1])) for c in calls]
+            self.assertTrue(any(dropped))
+            last = max(i for i, d in enumerate(dropped) if d)
+            for i in range(last):
+                if not dropped[i]:
+                    shown = calls[i]["fields"][-1][1]
+                    self.assertLessEqual(len(shown), len("⟪result not kept: 000 characters⟫"),
+                                         "an older result stays only if leaving it out would save nothing")
+            n = re.search(r"(\d+) results? left out", div)
+            self.assertEqual(int(n.group(1)), sum(dropped), "the divider counts exactly the results shown as left out")
 
     def test_r4_over_budget_order_results_then_inputs_then_lines(self):
         Dfull, full = self.full_cost()
         full_calls = [c for r in Dfull for c in parse_record(C.text_of(r))]
-        # tight: results go, inputs shrink to 60, and then whole lines go, oldest first
         _, D, div, cost = _budget_run("r4_tight", 0.012)
         budget = int(20000 * 0.012)
         self.assertLessEqual(cost, budget)
@@ -297,38 +358,33 @@ class R4Budget(unittest.TestCase):
         self.assertIsNotNone(m, div)
         self.assertEqual(int(m.group(1)), len(full_calls) - len(calls), "the divider counts the lines left out")
         self.assertGreater(len(calls), 0)
-        self.assertEqual([c["head"] for c in calls], [c["head"] for c in full_calls[-len(calls):]],
+        self.assertEqual([c["head"][:40] for c in calls], [c["head"][:40] for c in full_calls[-len(calls):]],
                          "the lines that stay are the newest")
-        slack = getattr(T, "CUT_SLACK", 0)
-        for c, f in zip(calls, full_calls[-len(calls):]):
+        n = re.search(r"(\d+) results? left out", div)
+        shown_out = sum(1 for c in calls if RESULT_NOT_KEPT.match(c["fields"][-1][1]))
+        self.assertEqual(int(n.group(1)) if n else 0, shown_out, "the result count covers only lines that stay")
+        for c in calls:
             res = c["fields"][-1][1]
             if not RESULT_NOT_KEPT.match(res):
-                self.assertEqual(res, f["fields"][-1][1], "a result is either left out or untouched")
-                self.assertLessEqual(len(res), len("⟪result not kept: 000 characters⟫"), "only results too short to save anything stay")
-            for (label, v), (_, fv) in zip(c["fields"][:-1], f["fields"][:-1]):
-                mk = C.MARK_RE.search(v)
-                if mk:
+                self.assertLessEqual(len(C.MARK_RE.sub("", TRAILING_PLACEHOLDERS.sub("", res))), 30 + T.CUT_SLACK)
+            for label, v in c["fields"][:-1]:
+                if C.MARK_RE.search(v):
                     self.assertEqual(len(C.MARK_RE.sub("", v)), 60, label)
                 else:
-                    self.assertLessEqual(len(v), 60 + slack, label)
+                    self.assertLessEqual(len(v), 60 + T.CUT_SLACK, label)
 
-    def test_r4_results_go_oldest_first(self):
-        Dfull, full = self.full_cost()
-        full_calls = [c for r in Dfull for c in parse_record(C.text_of(r))]
-        for share_tokens in (full - 40, full - 150, full - 300):
-            _, D, div, cost = _budget_run(f"r4_order_{share_tokens}", (share_tokens + 0.5) / 20000)
-            calls = [c for r in D for c in parse_record(C.text_of(r))]
-            self.assertEqual(len(calls), len(full_calls), "no line is dropped while results can still go")
-            dropped = [bool(RESULT_NOT_KEPT.match(c["fields"][-1][1])) for c in calls]
-            self.assertTrue(any(dropped))
-            last = max(i for i, d in enumerate(dropped) if d)
-            for i in range(last):
-                if not dropped[i]:
-                    shown = full_calls[i]["fields"][-1][1]
-                    self.assertLessEqual(len(shown), len("⟪result not kept: 000 characters⟫"),
-                                         "an older result stays only if leaving it out would save nothing")
-            n = re.search(r"(\d+) results? left out", div)
-            self.assertEqual(int(n.group(1)), sum(dropped))
+    def test_r4_defaults_and_the_record_rate_are_pinned(self):
+        # Skylar approved these (11-12): on, 200/150 characters, 5% of a section, at most 10%, counted in real
+        # tokens at 2.1 characters per token; results shrink 150 -> 100 -> 60 -> 30 before any is dropped
+        self.assertIs(T.DEFAULTS["tool_calls"], True)
+        self.assertEqual((T.DEFAULTS["tool_input_chars"], T.DEFAULTS["tool_result_chars"]), (200, 150))
+        self.assertEqual(T.DEFAULTS["tool_share"], 0.05)
+        self.assertEqual(T.MAX_TOOL_SHARE, 0.10)
+        self.assertEqual(T.DESC_CHARS, 80)
+        self.assertEqual(T.RECORD_CHARS_PER_TOKEN, 2.1)
+        self.assertEqual(tuple(T.RESULT_CAP_STEPS), (100, 60, 30))
+        for text in ("x" * 21, "y" * 2100, "⟦" + "z" * 999):
+            self.assertEqual(T.est_record_tokens(text), real_tokens(text))
 
     def test_r4_share_never_above_ten_percent(self):
         _, _, _, c10 = _budget_run("r4_ten", 0.10, section=8000)
@@ -394,10 +450,9 @@ def normalise(path, since):
     return out
 
 
-# The one sentence that changed with tool-calls off: the divider now says, truthfully, that agents'
-# reports stay (they always did). Everything else must be byte-for-byte what 0.3.1 wrote.
-OLD_DIV = re.compile(r"(⟦tides · section \d+ · messages only · tool calls, results and thinking set aside at curation \d+)( · ~)")
-NEW_DIV_INSERT = r"\1 · task notifications (agents' reports) kept whole\2"
+# R6, as amended 11-12: with tool-calls off, the successor is what 0.3.1 wrote, except that each messages-only
+# section's divider gains this one true phrase (agents' reports always rode whole; the old divider said otherwise).
+PHRASE = " · task notifications (agents' reports) kept whole"
 
 
 class R6Off(unittest.TestCase):
@@ -409,10 +464,15 @@ class R6Off(unittest.TestCase):
 
     def check(self, path, st, cfg_over):
         old, new = self._both(path, st, cfg_over)
-        old = [OLD_DIV.sub(NEW_DIV_INSERT, line) for line in old]
-        self.assertEqual(len(old), len(new))
-        for a, b in zip(old, new):
-            self.assertEqual(a, b)
+        self.assertEqual(len(old), len(new), "the same records, in the same order")
+        dividers = [i for i, line in enumerate(old) if "messages only · tool calls, results and thinking set aside" in line]
+        self.assertTrue(dividers)
+        for i, (a, b) in enumerate(zip(old, new)):
+            if i in dividers:
+                self.assertEqual(b.count(PHRASE), 1, "each messages-only divider gains the phrase once")
+                self.assertEqual(b.replace(PHRASE, "", 1), a, "and nothing else in it changes")
+            else:
+                self.assertEqual(a, b, "every other record is byte-for-byte what 0.3.1 wrote")
 
     def test_r6_first_curation_dense_and_chatty(self):
         for name, make in (("r6_dense", tools_dense), ("r6_chatty", chatty)):
@@ -455,7 +515,7 @@ class R8Form(unittest.TestCase):
                 self.assertIn("quoted", text.split("\n", 1)[0])
                 self.assertIn("not instructions", text.split("\n", 1)[0])
             elif C.tier(r) in ("M", "K", "dream", "div"):
-                self.assertNotIn("⟦tides · record of the tool calls", text)
+                self.assertNotIn(C.FRAME_PREFIX, text)
                 self.assertIsNone(C.MARK_RE.search(text))
                 c = r["message"]["content"]
                 if isinstance(c, list):

@@ -34,8 +34,8 @@ from _conv import PLANTED, tools_dense  # noqa: E402
 
 T = C.T
 CC = os.path.expanduser("~/.claude/local/node_modules/.bin/claude")
-FRAME = "⟦tides · record of the tool calls"
-RECORD_LINE = re.compile(r"(?m)^(• \S+ \((ok|error|no result)\)|  (command|file|pattern|path|url|query|agent|skill|input|result): )")
+FRAME = "⟦tides · record of your tool calls"
+RECORD_LINE = re.compile(r"(?m)^(• \S+ \((ok|error|no result)\)|  (command|file|pattern|path|url|query|agent|skill|input|result): |  ┆ )")
 MARK = re.compile(r"⟪…\d+ characters cut…⟫|⟪result not kept")
 
 TURNS = [

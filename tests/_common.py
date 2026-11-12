@@ -43,8 +43,10 @@ def _load(path, name):
 T = _load(UNDER_TEST, "tides_under_test")
 B = _load(BASELINE_PATH, "tides_baseline")
 
-FRAME_PREFIX = "⟦tides · record of the tool calls made in the turn above"
+FRAME_PREFIX = "⟦tides · record of your tool calls at this point"
 MARK_RE = re.compile(r"⟪…(\d+) characters cut…⟫")
+QUOTE = "  ┆ "                                   # starts every further line of quoted text in a record
+CUT_LINE_RE = re.compile(r"^  ⟪…\d+ characters cut…⟫")  # a real cut: always at the start of its own line
 
 
 def cfg_for(mod, **over):
