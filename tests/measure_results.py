@@ -7,14 +7,18 @@ For each archive (a transcript just before a curation), its previous whole secti
 turns into a messages-only section. Prints, at a 150k section and at 5% and 10%: calls, results, results shown,
 the cap results were shown at, results left out, and call lines left out.
 """
+import atexit
 import gzip
 import json
 import os
+import shutil
 import sys
 import tempfile
 from pathlib import Path
 
-os.environ.setdefault("TIDES_HOME", tempfile.mkdtemp(prefix="tides_measure_"))
+if "TIDES_HOME" not in os.environ:      # a temp home, removed at exit
+    os.environ["TIDES_HOME"] = tempfile.mkdtemp(prefix="tides_measure_")
+    atexit.register(shutil.rmtree, os.environ["TIDES_HOME"], True)
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import tides  # noqa: E402
 
