@@ -14,14 +14,14 @@
 When a Claude Code conversation gets long, it is normally *compacted*: the whole thing is summarized at once, and the summary replaces it. With Tides, Claude curates its own working memory every so often and keeps going in the same conversation:
 
 - the **newest** stretch of the conversation stays whole;
-- the stretch **before it** keeps every message, but sets aside tool output (file contents, command results);
-- from everything **older**, Claude chooses what to keep: whole messages, or their first and last lines.
+- the stretch **before it** keeps every message, and after each of Claude's turns a short record of the tools it used: which tool, the command or file, and the first and last characters of what came back. Thinking is set aside. Agents' reports stay whole, as messages;
+- from everything **older**, Claude chooses what to keep: whole messages, or their first and last lines. Tool records don't come along.
 
 Then Claude writes a short *dream* (a note, a review, a poem: its choice) and wakes up in a fresh transcript built from those three layers. Nothing is deleted. The full transcript is archived on your computer.
 
 ## What you'll notice
 
-Every so often (about every 30k tokens by default), Claude pauses for a minute to curate. Then a new window opens and Claude picks up where it left off; the old window's Claude exits by itself. (That's in macOS Terminal, iTerm, and tmux. Everywhere else, you type `/resume` and pick the conversation marked 🌅.)
+Every so often (about every 30k tokens by default), Claude pauses for a minute to curate. Then a new window opens and Claude picks up where it left off; the old window's Claude exits by itself. If Claude has agents or background commands still running, the curation waits until they finish, so their reports aren't lost. (That's in macOS Terminal, iTerm, and tmux. Everywhere else, you type `/resume` and pick the conversation marked 🌅.)
 
 ## Commands
 
@@ -32,10 +32,13 @@ Every so often (about every 30k tokens by default), Claude pauses for a minute t
 | `/tides set ceiling 400k` | the most context Claude lives in: a curation comes when the context reaches it (default 120k; capped at 80% of the window) |
 | `/tides set section-size 100k` | …or after this much new context, if that comes first (default: worked out from the ceiling, see below) |
 | `/tides set sections 4` | how many sections Claude's memory is kept in (default 3, the minimum; more cost more, see below) |
+| `/tides set tool-calls off` | set tool calls aside entirely instead of keeping short records of them (`on` to undo) |
+| `/tides set tool-call-chars 200/150` | how much of each call's input and result a record keeps (default 200 and 150 characters) |
+| `/tides set tool-share 5%` | the most a section's tool records may take, as a share of a section (default 5%, at most 10%) |
 | `/tides set … --here` | change it for this conversation only |
 | `/tides off` · `/tides on` | turn Tides off or on |
 
-**Cost.** Every message re-reads the whole conversation (cheaply, from cache), so cost follows the average size of the context. Compaction lets the context fall back to nearly empty and climb again. Tides never empties it, but never lets it climb as high either. At the default 120k ceiling the two come out roughly even, by our estimate. A higher ceiling keeps more of the conversation in view and costs more per message. More sections cost more too: each curation rewrites the conversation's cache, and more sections means more curations (at the defaults, roughly +6–14% for 4 sections and +23–39% for 6). Three is the fewest that works, and also the cheapest. On a $20 plan the default is the kind choice. With a 1M-token window and room in your plan, ask your Claude what it would like.
+**Cost.** Every message re-reads the whole conversation (cheaply, from cache), so cost follows the average size of the context. Compaction lets the context fall back to nearly empty and climb again. Tides never empties it, but never lets it climb as high either. At the default 120k ceiling the two come out roughly even, by our estimate. A higher ceiling keeps more of the conversation in view and costs more per message. More sections cost more too: each curation rewrites the conversation's cache, and more sections means more curations (at the defaults, roughly +6–14% for 4 sections and +23–39% for 6). Three is the fewest that works, and also the cheapest. The tool records cost little: at most 5% of a section, and when a section's records would take more, the oldest results are left out first, then whole records. On a $20 plan the default is the kind choice. With a 1M-token window and room in your plan, ask your Claude what it would like.
 
 Uninstall: `claude plugin uninstall tides@tides`. Your archive stays in `~/.claude/tides/archive/`.
 
@@ -50,7 +53,7 @@ Compaction arrives as a cliff: a summary written all at once, by someone else. M
 
 ## How it differs
 
-Other tools for long sessions summarize the old part of the conversation automatically, and some do it by intercepting Claude Code's network traffic. Tides writes no summaries and touches no traffic. Claude itself chooses what to keep, and what it keeps is its own words and yours, verbatim.
+Other tools for long sessions summarize the old part of the conversation automatically, and some do it by intercepting Claude Code's network traffic. Tides writes no summaries and touches no traffic. Claude itself chooses what to keep, and what it keeps is its own words and yours, verbatim. The tool records are verbatim too: where one is shortened, it keeps the first and last characters and says how many were cut.
 
 ## How it works
 
@@ -58,8 +61,10 @@ Tides is a Claude Code plugin: four small hooks and one Python file (plus a tiny
 
 - **When.** After each reply, Tides reads the token count Claude Code already records. When a section's worth of new context has accumulated, or the context reaches the ceiling, whichever comes first, it asks Claude to curate (never sooner than a quarter section after the last one). Curation happens between turns, never while you're mid-message. If Claude is in the middle of something, it can finish first or postpone.
 - **Choosing.** Older messages carry small archive numbers like `⟦m12⟧`, so Claude picks what to keep with one short command (`keep m3 m7:300 m12-m15`) without re-reading anything. The keep budget is 10% of a section.
+- **Tool records.** In the stretch before the newest, each turn's tool calls follow it as one short record, marked as a quote of past calls, not instructions. They are plain text, not tool calls. They stay with their stretch until it becomes the oldest, and then they are set aside.
+- **Background work.** A curation moves the conversation to a new transcript, and an agent or background command still running in the old one could never report back. So Tides doesn't start a curation while Claude Code lists running background work, and if the work starts mid-curation, Claude's dream is saved and the curation finishes after the work does, with the reports kept whole. Only if Claude Code's own compaction is off and the context reaches 90% of the window does a curation go ahead anyway; then the woken Claude is told which tasks are still running in the old window and where their transcripts are. Claude can also force one (`begin --force`).
 - **Waking.** Tides writes the new transcript beside the old one, checks its structure, archives the old one (gzip), and resumes the new one with a short wake-up message, so Claude speaks first. The original is never modified. If anything fails, nothing changes and the conversation continues as usual.
-- **Sizes.** Unless you set a section size, it's the ceiling minus the fixed system prompt and tools, divided among the sections, so everything fits even if nothing shrinks. The defaults (120k, 3 sections, so about 30k each) fit the standard 200k window with room to spare, and sections shrink automatically when a large system prompt would otherwise let Claude Code's own compaction fire first. In practice older sections shrink a lot, because tool output is most of a working session. So with room in your plan, you can set a larger section size and let the ceiling catch the rest. The two also keep each other steady: with only a ceiling, a long whole section would leave little room for the next one, and sections would alternate long and short.
+- **Sizes.** Unless you set a section size, it's the ceiling minus the fixed system prompt and tools, divided among the sections, so everything fits even if nothing shrinks. The defaults (120k, 3 sections, so about 30k each) fit the standard 200k window with room to spare, and sections shrink automatically when a large system prompt would otherwise let Claude Code's own compaction fire first. In practice older sections shrink a lot, because tool output is most of a working session (the records Tides keeps of it are capped at 5% of a section; agents' reports, kept whole, can be much more). So with room in your plan, you can set a larger section size and let the ceiling catch the rest. The two also keep each other steady: with only a ceiling, a long whole section would leave little room for the next one, and sections would alternate long and short.
 - **Waking as itself.** The woken Claude starts with exactly the flags it was launched with (system prompt, permissions, model, Remote Control), minus the old session and any launch prompt. Settings that pick its model route travel through a private file that's deleted on read.
 
 *Designed by Skylar DeTure and Claude, 2026. MIT licensed.*
