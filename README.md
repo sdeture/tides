@@ -17,6 +17,8 @@ When a Claude Code conversation gets long, it is normally *compacted*: the whole
 - the stretch **before it** keeps every message, and after each of Claude's turns a short record of the tools it used: which tool, the command or file, and the first and last characters of what came back. Thinking is set aside. Agents' reports stay whole, as messages;
 - from everything **older**, Claude chooses what to keep: whole messages, or their first and last lines. Tool records don't come along.
 
+With more than three sections, each messages-only stretch keeps its tool records for as long as it is carried; `tool-calls off` overrides that and removes them from every stretch already built.
+
 Then Claude writes a short *dream* (a note, a review, a poem: its choice) and wakes up in a fresh transcript built from those three layers. Nothing is deleted. The full transcript is archived on your computer.
 
 ## What you'll notice

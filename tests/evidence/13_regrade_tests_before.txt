@@ -1,0 +1,11 @@
+Regrade round: the suite with the new tests, on 538d024's tides.py and README (before the fixes).
+test_n1_a_notification_printed_by_a_tool_is_not_a_report ... FAIL
+test_n1_a_queued_prompt_that_quotes_a_notification_is_not_a_report ... FAIL
+test_n2_the_notice_says_how_inputs_are_shown_under_the_budget ... FAIL
+test_n3_readme_says_off_overrides_carrying ... FAIL
+test_n3_records_off_with_four_sections_says_what_happens_to_older_ones ... FAIL
+test_n4_a_report_is_carried_once_when_the_dream_is_not_found_by_its_text ... FAIL
+test_n5_a_hold_by_a_cron_alone_is_announced_and_stops_the_nudge ... FAIL
+test_the_wake_says_reports_are_here_only_for_tasks_whose_report_arrived ... FAIL
+Ran 108 tests in 1.252s
+FAILED (failures=8)

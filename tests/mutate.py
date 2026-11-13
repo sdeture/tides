@@ -7,6 +7,7 @@ suite against it (TIDES_UNDER_TEST), and report which tests caught it. A mutant 
 """
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -128,7 +129,7 @@ FIXROUND = [
     ("F2 the person is not told of a hold", 'if not hold.get("told_person"):', "if False:"),
     ("F2 Claude is told of a hold every time", 'if hold and not hold.get("told_claude") and', "if hold and"),
     ("F2 notes are not given at the next prompt", "told = pending_notes(sid, st, None)", 'told = ""'),
-    ("F2 status does not say a tide is held", "if is_due and held:", "if False:"),
+    ("F2 status does not say a tide is held", "        if is_due and held:\n            print(", "        if False:\n            print("),
     ("F3 a dropped wait's dream is not saved to a file", 'f.write_text(st.get("dream_saved") or "", encoding="utf-8")', "pass"),
     ("F7 the cut is not pinned while waiting", 'st["cut_pinned"] = bool(st["cut"])', 'st["cut_pinned"] = False'),
     ("F7 a begin-started cut is the latest begin", "return next((cut for printed, cut in hits if printed), hits[0][1])", "return hits[0][1]"),
@@ -158,7 +159,31 @@ ORDER = [   # the coordinator's budget order (11-12): results to 30, inputs to 1
     ("O inputs shorten newest first", "        for i, j in order:\n            if total <= budget:\n                break\n            c = recs[i][\"calls\"][j]\n            if c[\"in_cap\"] > to:",
      "        for i, j in order[::-1]:\n            if total <= budget:\n                break\n            c = recs[i][\"calls\"][j]\n            if c[\"in_cap\"] > to:"),
 ]
-MUTANTS = MUTANTS + GRADER + FIXROUND + ORDER
+REGRADE = [   # the regrade at 538d024: N1-N5, the wake's report sentence, and the grader's missed mutants
+    ("N1 a tool result's notification text is a report",
+     'if not isinstance(src, str) or not src.lstrip().startswith("<task-notification>"):',
+     'if not isinstance(src, str):'),
+    ("N1 tool_result blocks are read for reports",
+     'b.get("text") or "" for b in c or [] if isinstance(b, dict) and b.get("type") == "text")',
+     'str(b.get("text") or b.get("content") or "") for b in c or [] if isinstance(b, dict))'),
+    ("N2 the notice claims the full input cap", "            shrunk = d[\"inputs_mid\"] + d[\"inputs_short\"]\n",
+     "            shrunk = 0\n"),
+    ("N2 inputs shortened to 100 are counted as 60", '"inputs_mid": cuts.count(MID_INPUT_CHARS),', '"inputs_mid": 0,'),
+    ("N2 'none stay' still gives a length", 'if not d["results_shown"] else', "if False else"),
+    ("N3 records off: older sections 'stay as they are'", '("stay as they are.)" if cfg.get("tool_calls", True) else',
+     '("stay as they are.)" if True else'),
+    ("N4 a report in the tail is carried again", "notes = [(n, ts) for n, ts in notes if n not in in_tail]", "pass"),
+    ("N5 a cron alone holds nothing", "    held = (running or []) + crons\n", "    held = running or []\n"),
+    ("N5 crons do not stop the nudge or begin", ' + scan + list(snap.get("crons") or [])', " + scan"),
+    ("W the wake says every report arrived", "report_arrived=any(k and k in fin for k in (t.get(\"id\"), t.get(\"tool_use_id\")))",
+     "report_arrived=True"),
+    ("G a carried report loses its origin", 'rec["origin"] = {"kind": "task-notification"}', "pass"),
+    ("G SessionStart overwrites a superseded window's path",
+     'if inp.get("transcript_path") and not st.get("superseded_by"):', 'if inp.get("transcript_path"):'),
+    ("G a non-dict input is shown as {}", 'fields = [("input", json.dumps(raw, ensure_ascii=False, separators=(",", ":")))]',
+     'fields = [("input", "{}")]'),
+]
+MUTANTS = MUTANTS + GRADER + FIXROUND + ORDER + REGRADE
 
 
 def run(name, old, new):
@@ -168,8 +193,11 @@ def run(name, old, new):
     p = Path(d) / "tides.py"
     p.write_text(SRC.replace(old, new), encoding="utf-8")
     env = dict(os.environ, TIDES_UNDER_TEST=str(p))
-    r = subprocess.run([sys.executable, str(HERE / "run_offline.py")], env=env, capture_output=True, text=True,
-                       timeout=600)
+    try:
+        r = subprocess.run([sys.executable, str(HERE / "run_offline.py")], env=env, capture_output=True, text=True,
+                           timeout=600)
+    finally:
+        shutil.rmtree(d, True)
     out = r.stdout + r.stderr
     caught = sorted(set(re.findall(r"^(?:FAIL|ERROR): (\S+)", out, re.M)))
     return name, caught, None

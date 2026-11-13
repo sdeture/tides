@@ -18,7 +18,7 @@ if "--baseline" in args:
 sys.path.insert(0, str(HERE))
 import _common  # noqa: E402  (scrubs the environment and sets TIDES_HOME before anything loads tides)
 
-print(f"module under test: {_common.UNDER_TEST}\ntemp home: {_common.TMP}")
+print(f"module under test: {_common.UNDER_TEST}\ntemp home: {_common.TMP} (removed at exit unless TIDES_KEEP_TMP=1)")
 loader = unittest.TestLoader()
 if "-k" in args:
     loader.testNamePatterns = [f"*{args[args.index('-k') + 1]}*"]

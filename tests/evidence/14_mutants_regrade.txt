@@ -1,0 +1,109 @@
+Mutation run, 2026-11-12 16:02 PST, regrade round: the build's 24, the grader's 36, the fix round's 21, 8 live, 5 order, 13 regrade.
+caught  finish gate removed (dream finishes while tasks run): 13 test(s), e.g. test_a_dropped_attachment_just_before_begin_does_not_orphan_the_dream, test_d1_a_task_is_either_waited_for_or_cut_off_never_both, test_d1_all_cut_off_means_no_waited_sentence
+caught  internal task types not filtered: 2 test(s), e.g. test_d6_every_listed_task_counts_whatever_its_status, test_r11_internal_tasks_do_not_hold_a_tide
+caught  nudge ignores running tasks: 3 test(s), e.g. test_d2_a_held_tide_is_told_once_to_each_and_shown_in_status, test_n5_a_hold_by_a_cron_alone_is_announced_and_stops_the_nudge, test_r11_a_quiet_agent_45_minutes_in_still_counts
+caught  begin ignores running tasks: 6 test(s), e.g. test_d9_first_turn_launch_counts_before_any_stop, test_r11_a_quiet_agent_45_minutes_in_still_counts, test_r11_background_bash_launch_counts_too
+caught  compaction always reported off (so a tide is always forceable): 2 test(s), e.g. test_force_margin_from_below, test_r11_never_forced_while_compaction_is_on
+caught  deferred finish drops what came after the dream: 4 test(s), e.g. test_d7_a_second_begin_while_waiting_keeps_the_cut_and_one_dream, test_n4_a_report_is_carried_once_when_the_dream_is_not_found_by_its_text, test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports
+caught  wake text says nothing about tasks cut off: 4 test(s), e.g. test_d1_a_task_is_either_waited_for_or_cut_off_never_both, test_d7_begin_force_end_to_end, test_r11_begin_force_overrides_and_r15_wake_names_the_tasks
+caught  budget ignored: 10 test(s), e.g. test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go, test_d5_notice_numbers_match_what_the_curation_writes, test_inputs_shorten_to_100_oldest_first
+caught  share not clamped at 10%: 1 test(s), e.g. test_r4_share_never_above_ten_percent
+caught  budget cuts newest first: 3 test(s), e.g. test_inputs_shorten_to_100_oldest_first, test_r4_over_budget_order_results_inputs_results_inputs_lines, test_r4_results_go_oldest_first
+caught  results never left out (skip straight to inputs): 1 test(s), e.g. test_r4_results_go_oldest_first
+caught  inputs never shortened: 6 test(s), e.g. test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go, test_inputs_shorten_to_100_oldest_first, test_n2_the_notice_says_how_inputs_are_shown_under_the_budget
+caught  no slack before cutting: 1 test(s), e.g. test_r2_a_field_barely_over_its_cap_stays_whole
+caught  carried sections lose their records: 1 test(s), e.g. test_r1b_digests_carried_byte_identical_then_dropped
+caught  records written as non-meta user turns: 40 test(s), e.g. test_a_carried_report_keeps_its_origin, test_a_dropped_attachment_just_before_begin_does_not_orphan_the_dream, test_a_duplicate_result_id_is_caught
+caught  validate: unanswered calls not checked: 1 test(s), e.g. test_mut_unanswered_tool_use
+caught  validate: orphan results not checked: 1 test(s), e.g. test_mut_orphan_result
+caught  validate: text-before-results not checked: 1 test(s), e.g. test_mut_text_before_result
+caught  validate: duplicate ids not checked: 2 test(s), e.g. test_a_duplicate_result_id_is_caught, test_mut_duplicate_tool_use_id
+caught  validate: last-assistant tool call not checked: 1 test(s), e.g. test_mut_last_assistant_tool_call_even_when_answered
+caught  validate: tool blocks in Tides records not checked: 2 test(s), e.g. test_a_tool_block_in_a_kept_memory_is_caught, test_mut_tool_block_in_a_record_tides_wrote
+caught  validate: thinking in Tides records not checked: 1 test(s), e.g. test_mut_thinking_in_a_record_tides_wrote
+caught  validate: record framing not checked: 1 test(s), e.g. test_mut_digest_not_meta_or_unframed
+caught  validate: first message not checked: 1 test(s), e.g. test_mut_first_message_assistant
+caught  G R1 a call with no result is shown as an empty result: 1 test(s), e.g. test_a_call_with_no_result_says_so
+caught  G R1 several text blocks of one result are joined with nothing: 1 test(s), e.g. test_several_text_blocks_are_joined_by_a_named_mark
+caught  G R1 description cap 80 -> 2: 2 test(s), e.g. test_description_is_capped_at_80, test_r4_defaults_and_the_record_rate_are_pinned
+caught  G R1 unknown tools show no input at all: 2 test(s), e.g. test_a_non_string_description_stays_in_the_shown_input, test_r1_one_record_per_turn_with_every_field_in_order
+caught  G R1 is_error ignored: 1 test(s), e.g. test_r1_one_record_per_turn_with_every_field_in_order
+caught  G R1 parallel calls in reverse block order: 1 test(s), e.g. test_r1_one_record_per_turn_with_every_field_in_order
+caught  G R1b carried section's divider forgets it has records: 1 test(s), e.g. test_r1b_digests_carried_byte_identical_then_dropped
+caught  G R1b carried records lose their place: 1 test(s), e.g. test_r1b_digests_carried_byte_identical_then_dropped
+caught  G R2 cut strips whitespace at the cut edge: 3 test(s), e.g. test_r1_one_record_per_turn_with_every_field_in_order, test_r2_every_mark_is_exact_arithmetic, test_r4_over_budget_order_results_inputs_results_inputs_lines
+caught  G R2 cut count off by one: 3 test(s), e.g. test_a_cut_never_splits_an_emoji_sequence, test_r1_one_record_per_turn_with_every_field_in_order, test_r2_every_mark_is_exact_arithmetic
+caught  G R4 default result cap 150 -> 15: 5 test(s), e.g. test_r4_at_budget_nothing_dropped_one_under_something_is, test_r4_defaults_and_the_record_rate_are_pinned, test_r4_inputs_shorten_to_100_before_any_result_goes
+caught  G R4 default input cap 200 -> 20: 10 test(s), e.g. test_d4_nothing_quoted_can_start_a_record_line, test_d4_quoted_values_decode_to_the_originals, test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go
+caught  G R4 default share 5% -> 10%: 1 test(s), e.g. test_r4_defaults_and_the_record_rate_are_pinned
+caught  G R4 default share 5% -> 0.5%: 7 test(s), e.g. test_mut_digest_not_meta_or_unframed, test_mut_thinking_in_a_digest_record, test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations
+caught  G R4 records counted at 3.6 chars/token, not 2.1: 9 test(s), e.g. test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go, test_n2_the_notice_says_how_inputs_are_shown_under_the_budget, test_r4_at_budget_nothing_dropped_one_under_something_is
+caught  G R4 divider's result count also counts dropped lines: 2 test(s), e.g. test_d5_notice_numbers_match_what_the_curation_writes, test_r4_over_budget_order_results_inputs_results_inputs_lines
+caught  G R4 tool-share stored uncapped: 1 test(s), e.g. test_r4_settings_set_and_shown
+caught  G R7 validate: K records exempt from the no-tool-block rule: 1 test(s), e.g. test_a_tool_block_in_a_kept_memory_is_caught
+caught  G R7 validate: duplicate tool_result ids not noticed: 1 test(s), e.g. test_a_duplicate_result_id_is_caught
+caught  G R7 validate: records of one API message not merged: 1 test(s), e.g. test_r7_raw_fixtures_pass_too
+caught  G R7 a failed check no longer stops the wake: 1 test(s), e.g. test_a_failed_check_stops_the_wake
+caught  G R10 0.3.x section gets the records divider: 1 test(s), e.g. test_r10_sections_built_by_0_3_x_carry_unchanged_over_two_new_curations
+caught  G R11 (inverse, now intended) a task with an unknown status is not counted: 1 test(s), e.g. test_d6_every_listed_task_counts_whatever_its_status
+caught  G R11 force margin 90% -> 10%: 1 test(s), e.g. test_force_margin_from_below
+caught  G R11 the old window is killed even when tasks are running in it: 1 test(s), e.g. test_d8_the_old_window_ends_only_when_nothing_runs_in_it
+caught  G R11 a person speaking cancels a waiting curation: 1 test(s), e.g. test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports
+caught  G R11 a waiting curation is cancelled after 3 minutes, not 3 hours: 1 test(s), e.g. test_d3_not_cancelled_before_three_hours
+caught  G R11 completions ever seen (not only since launch) clear a task: 1 test(s), e.g. test_a_completion_from_before_a_launch_does_not_clear_it
+caught  G R11 `later` keeps the saved dream: 1 test(s), e.g. test_later_during_a_wait_forgets_the_saved_dream
+caught  G R11 Monitor launches not recorded: 1 test(s), e.g. test_monitor_launches_are_recorded
+caught  G R12 the notice's result figure is wrong: 2 test(s), e.g. test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go, test_d5_notice_numbers_match_what_the_curation_writes
+caught  G R15 waited-for tasks not named in the wake text: 2 test(s), e.g. test_r11_dream_with_running_tasks_waits_then_finishes_with_their_reports, test_the_wake_says_reports_are_here_only_for_tasks_whose_report_arrived
+caught  G R15 shell tasks get no output path: 2 test(s), e.g. test_r11_begin_force_overrides_and_r15_wake_names_the_tasks, test_r15_forced_at_ninety_percent_when_compaction_is_off
+caught  G R3 thinking leaks into message units: 2 test(s), e.g. test_r6_first_curation_dense_and_chatty, test_r6_only_the_divider_differs
+caught  G R1 a tool-only turn's record is anchored to nothing: 2 test(s), e.g. test_r1_one_record_per_turn_with_every_field_in_order, test_r4_results_go_oldest_first
+caught  G R1 results matched to the wrong call: 8 test(s), e.g. test_a_call_with_no_result_says_so, test_a_cut_never_splits_an_emoji_sequence, test_r1_one_record_per_turn_with_every_field_in_order
+caught  F4 quoted text is not quoted: 53 test(s), e.g. test_a_call_with_no_result_says_so, test_a_carried_report_keeps_its_origin, test_a_cut_never_splits_an_emoji_sequence
+caught  F4 a real cut is not on its own line: 1 test(s), e.g. test_d4_nothing_quoted_can_start_a_record_line
+caught  F4 validate does not check a record's shape: 1 test(s), e.g. test_d4_validate_rejects_a_record_whose_body_breaks_the_shape
+caught  F9 a cut may split an emoji sequence: 1 test(s), e.g. test_a_cut_never_splits_an_emoji_sequence
+caught  F9 a non-string description is dropped from the input: 1 test(s), e.g. test_a_non_string_description_stays_in_the_shown_input
+caught  F9 tool-calls off keeps carried records: 1 test(s), e.g. test_tool_calls_off_drops_records_from_carried_sections_too
+caught  D1 results never shrink evenly: 5 test(s), e.g. test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go, test_d5_notice_numbers_match_what_the_curation_writes, test_r4_at_budget_nothing_dropped_one_under_something_is
+caught  F1 a cut-off task is also 'waited for': 2 test(s), e.g. test_d1_a_task_is_either_waited_for_or_cut_off_never_both, test_d1_all_cut_off_means_no_waited_sentence
+caught  F2 the person is not told of a hold: 2 test(s), e.g. test_d2_a_held_tide_is_told_once_to_each_and_shown_in_status, test_n5_a_hold_by_a_cron_alone_is_announced_and_stops_the_nudge
+caught  F2 Claude is told of a hold every time: 4 test(s), e.g. test_d2_a_held_tide_is_told_once_to_each_and_shown_in_status, test_d2_told_at_the_next_prompt_if_no_tool_runs_first, test_n5_a_hold_by_a_cron_alone_is_announced_and_stops_the_nudge
+caught  F2 notes are not given at the next prompt: 3 test(s), e.g. test_d2_a_new_hold_after_the_old_one_ended_is_told_again, test_d2_told_at_the_next_prompt_if_no_tool_runs_first, test_d3_a_waiting_curation_dropped_after_three_hours_says_so_and_where_the_dream_is
+caught  F2 status does not say a tide is held: 2 test(s), e.g. test_d2_a_held_tide_is_told_once_to_each_and_shown_in_status, test_n5_a_hold_by_a_cron_alone_is_announced_and_stops_the_nudge
+caught  F3 a dropped wait's dream is not saved to a file: 1 test(s), e.g. test_d3_a_waiting_curation_dropped_after_three_hours_says_so_and_where_the_dream_is
+caught  F7 the cut is not pinned while waiting: 1 test(s), e.g. test_d7_a_second_begin_while_waiting_keeps_the_cut_and_one_dream
+caught  F7 a begin-started cut is the latest begin: 1 test(s), e.g. test_d7_the_begin_that_printed_the_notice_sets_the_cut
+caught  F8 the fallback scan does not spare the old window: 1 test(s), e.g. test_d8_the_old_window_ends_only_when_nothing_runs_in_it
+caught  F9 first-turn launches are ignored: 1 test(s), e.g. test_d9_first_turn_launch_counts_before_any_stop
+caught  F9 turning Tides off leaves a curation waiting: 1 test(s), e.g. test_d9_turning_tides_off_drops_a_waiting_curation
+caught  W the native-1M table is ignored: 1 test(s), e.g. test_window_from_what_the_transcript_and_environment_say
+caught  W a context past 200k does not imply 1M: 1 test(s), e.g. test_window_from_what_the_transcript_and_environment_say
+caught  L the dream hangs from a dropped attachment (0.4.0-pre line): 1 test(s), e.g. test_a_dropped_attachment_just_before_begin_does_not_orphan_the_dream
+caught  L a task report mid-curation cancels it: 2 test(s), e.g. test_a_report_in_the_old_window_after_the_wake_is_not_blocked, test_a_task_report_mid_curation_does_not_cancel_it
+caught  L a report from the curation region is dropped: 3 test(s), e.g. test_a_carried_report_keeps_its_origin, test_a_task_report_that_arrived_mid_curation_follows_the_dream, test_n1_a_queued_prompt_that_quotes_a_notification_is_not_a_report
+caught  L a queued report is not read: 3 test(s), e.g. test_a_carried_report_keeps_its_origin, test_a_task_report_that_arrived_mid_curation_follows_the_dream, test_n1_a_queued_prompt_that_quotes_a_notification_is_not_a_report
+caught  L a report is carried twice: 1 test(s), e.g. test_a_task_report_that_arrived_mid_curation_follows_the_dream
+caught  L the wake text does not count carried reports: 1 test(s), e.g. test_a_task_report_that_arrived_mid_curation_follows_the_dream
+caught  L begin looks only under ~/.claude: 1 test(s), e.g. test_begin_finds_the_transcript_under_claude_config_dir
+caught  L SessionStart forgets the transcript path: 1 test(s), e.g. test_session_start_records_the_transcript_path
+caught  W a state sized by the old rule is never re-sized: 1 test(s), e.g. test_window_from_what_the_transcript_and_environment_say
+caught  O results go before inputs reach 100 (the fix round's order): 5 test(s), e.g. test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go, test_inputs_shorten_to_100_oldest_first, test_n2_the_notice_says_how_inputs_are_shown_under_the_budget
+caught  O inputs go to 60 before any result goes: 5 test(s), e.g. test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go, test_inputs_shorten_to_100_oldest_first, test_n2_the_notice_says_how_inputs_are_shown_under_the_budget
+caught  O inputs never reach 60: 1 test(s), e.g. test_r4_over_budget_order_results_inputs_results_inputs_lines
+caught  O the middle input step is 60: 6 test(s), e.g. test_d5_notice_follows_the_budget_order_inputs_to_100_before_results_go, test_inputs_shorten_to_100_oldest_first, test_n2_the_notice_says_how_inputs_are_shown_under_the_budget
+caught  O inputs shorten newest first: 1 test(s), e.g. test_inputs_shorten_to_100_oldest_first
+caught  N1 a tool result's notification text is a report: 1 test(s), e.g. test_n1_a_queued_prompt_that_quotes_a_notification_is_not_a_report
+caught  N1 tool_result blocks are read for reports: 1 test(s), e.g. test_n1_a_notification_printed_by_a_tool_is_not_a_report
+caught  N2 the notice claims the full input cap: 1 test(s), e.g. test_n2_the_notice_says_how_inputs_are_shown_under_the_budget
+caught  N2 inputs shortened to 100 are counted as 60: 1 test(s), e.g. test_n2_the_notice_says_how_inputs_are_shown_under_the_budget
+caught  N2 'none stay' still gives a length: 1 test(s), e.g. test_n2_the_notice_says_how_inputs_are_shown_under_the_budget
+caught  N3 records off: older sections 'stay as they are': 1 test(s), e.g. test_n3_records_off_with_four_sections_says_what_happens_to_older_ones
+caught  N4 a report in the tail is carried again: 1 test(s), e.g. test_n4_a_report_is_carried_once_when_the_dream_is_not_found_by_its_text
+caught  N5 a cron alone holds nothing: 1 test(s), e.g. test_n5_a_hold_by_a_cron_alone_is_announced_and_stops_the_nudge
+caught  N5 crons do not stop the nudge or begin: 1 test(s), e.g. test_n5_a_hold_by_a_cron_alone_is_announced_and_stops_the_nudge
+caught  W the wake says every report arrived: 1 test(s), e.g. test_the_wake_says_reports_are_here_only_for_tasks_whose_report_arrived
+caught  G a carried report loses its origin: 1 test(s), e.g. test_a_carried_report_keeps_its_origin
+caught  G SessionStart overwrites a superseded window's path: 1 test(s), e.g. test_session_start_in_a_superseded_window_keeps_the_old_path
+caught  G a non-dict input is shown as {}: 1 test(s), e.g. test_a_non_dict_input_is_shown_as_it_was
+missed: 0

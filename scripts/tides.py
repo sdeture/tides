@@ -593,9 +593,19 @@ def build_digests(groups, cfg, section):
     stats = {"left_out": lines_out, "results_left_out": sum(1 for c in kept if c["drop_result"])}
     if cap_now < res_cap:
         stats["result_cap"] = cap_now
+    def shortened(c):     # the cap the budget lowered a call's inputs to, if that cut more than its own cap would
+        cap = c["in_cap"]
+        if cap >= in_cap:
+            return None
+        more = any(cut_points(v, cap) != cut_points(v, in_cap) for _, v in c["fields"])
+        if c["desc"]:
+            more = more or cut_points(c["desc"], min(DESC_CHARS, cap)) != cut_points(c["desc"], min(DESC_CHARS, in_cap))
+        return cap if more else None
+    cuts = [shortened(c) for c in kept]
     stats.update({"calls": len(every), "results": sum(1 for c in every if c["result"] is not None),
                   "results_shown": sum(1 for c in kept if c["result"] is not None and not c["drop_result"]),
-                  "cap": cap_now})
+                  "cap": cap_now, "inputs_kept": len(kept), "inputs_mid": cuts.count(MID_INPUT_CHARS),
+                  "inputs_short": cuts.count(SHORT_INPUT_CHARS)})
     return out, stats
 
 
@@ -804,20 +814,24 @@ def tail_after_dream(path, st, dream_text):
 
 
 def task_notes(records):
-    """The background-task reports in these records, whole (as Claude Code writes them: a user record, or a
-    queued_command attachment when the report arrives mid-turn), oldest first, each once."""
+    """The background-task reports in these records, whole, oldest first, each once: only records that are
+    themselves the report, as Claude Code writes them (a queued_command attachment when it arrives mid-turn, or
+    a user record whose own text is the notification), never a tool result that happens to contain one."""
     out = []
     for r in records:
         if r.get("type") == "user" and not r.get("isMeta"):
-            src = (r.get("message") or {}).get("content")
+            c = (r.get("message") or {}).get("content")
+            src = c if isinstance(c, str) else "".join(
+                b.get("text") or "" for b in c or [] if isinstance(b, dict) and b.get("type") == "text")
         elif r.get("type") == "attachment" and (r.get("attachment") or {}).get("type") == "queued_command":
             src = (r.get("attachment") or {}).get("prompt")
         else:
             continue
-        for s in ([src] if isinstance(src, str) else list(_strings(src))):
-            for m in NOTE_RE.finditer(s):
-                if m.group(0) not in [n for n, _ in out]:
-                    out.append((m.group(0), r.get("timestamp")))
+        if not isinstance(src, str) or not src.lstrip().startswith("<task-notification>"):
+            continue
+        for m in NOTE_RE.finditer(src):
+            if m.group(0) not in [n for n, _ in out]:
+                out.append((m.group(0), r.get("timestamp")))
     return out
 
 
@@ -968,6 +982,9 @@ def build_successor(path, st, dream_text, cfg, last_message=None):
     add(dream)
     # background-task reports that arrived during the curation itself, which is not carried: after the dream
     notes = notes_in_curation(path, st, st.get("dream_saved") or dream_text)
+    if st.get("dream_saved"):     # a report also in what follows the dream (it can't be told apart) is carried once
+        in_tail = {n for n, _ in task_notes(tail_after_dream(path, st, st["dream_saved"]))}
+        notes = [(n, ts) for n, ts in notes if n not in in_tail]
     for note, ts in notes:
         rec = mk("user", note, ts or now_iso(), tmpl, sid, parent, {"tier": "note", "n": n})
         rec["origin"] = {"kind": "task-notification"}
@@ -1156,11 +1173,17 @@ def notice_text(path, st, cfg, reason="due", cut_off=None):
         if not d["calls"]:
             two = f"2. Section {n} keeps its messages; it made no tool calls. Thinking is set aside."
         else:
+            shrunk = d["inputs_mid"] + d["inputs_short"]
+            inputs = (f"the name, and the command or file up to {in_cap} characters" if not shrunk else
+                      f"the name, and the command or file: {d['inputs_kept'] - shrunk} at up to {in_cap} characters, "
+                      f"{d['inputs_mid']} shortened to {MID_INPUT_CHARS}, {d['inputs_short']} shortened to "
+                      f"{SHORT_INPUT_CHARS} (oldest first, to fit)")
+            stay = (f"none of the {d['results']} results stay" if not d["results_shown"] else
+                    f"{d['results_shown']} of {d['results']} results stay, each shown up to its first and last "
+                    f"{d['cap']} characters" + (f" (down from {res_cap}, to fit)" if d["cap"] < res_cap else ""))
             two = (f"2. Section {n} keeps its messages, and after each turn a short quoted record of its "
-                   f"{d['calls']} tool call{'' if d['calls'] == 1 else 's'}: the name, and the command or file up to "
-                   f"{in_cap} characters. Under the budget ({share:.0%} of a section), {d['results_shown']} of "
-                   f"{d['results']} results stay, each shown up to its first and last {d['cap']} characters"
-                   + (f" (down from {res_cap}, to fit)" if d["cap"] < res_cap else "")
+                   f"{d['calls']} tool call{'' if d['calls'] == 1 else 's'}: {inputs}. "
+                   f"Under the budget ({share:.0%} of a section), {stay}"
                    + (f"; {d['results_left_out']} result{'' if d['results_left_out'] == 1 else 's'} left out"
                       if d["results_left_out"] else "")
                    + (f"; {d['left_out']} call line{'' if d['left_out'] == 1 else 's'} left out, oldest first"
@@ -1172,7 +1195,9 @@ def notice_text(path, st, cfg, reason="due", cut_off=None):
                "notifications, such as agents' reports, stay as messages); if a tool result matters, carry its gist "
                "into your dream.")
     lines += [
-        two + (f" (You keep {cfg['sections'] - 2} messages-only sections; older ones stay as they are.)"
+        two + (f" (You keep {cfg['sections'] - 2} messages-only sections; older ones "
+               + ("stay as they are.)" if cfg.get("tool_calls", True) else
+                  "keep their messages and lose their tool-call records, as this setting is off.)")
                if cfg["sections"] > 3 else ""),
         f"3. Section {n + 1}, the newest, stays whole.",
         "",
@@ -1226,8 +1251,16 @@ def wake_text(report):
             "or a question.")
     if report.get("waited"):
         w = report["waited"]
+        came = [t for t in w if t.get("report_arrived")]
+        not_yet = [t for t in w if not t.get("report_arrived")]
         text += (f" (This curation waited for {len(w)} background task{'' if len(w) == 1 else 's'} to finish: "
-                 f"{describe_tasks(w)}. Their reports are in the newest section, after your dream.)")
+                 f"{describe_tasks(w)}."
+                 + ((" Its report is" if len(came) == 1 else " Their reports are") + " in the newest section, after "
+                    "your dream." if came else "")
+                 + (f" The report of {describe_tasks(not_yet)} has not arrived: {'it' if len(not_yet) == 1 else 'they'} "
+                    "left Claude Code's list of running work before a report was written. Read the output file or "
+                    "transcript before you redo that work or call it failed." if not_yet else "")
+                 + ")")
     if report.get("cut_off"):
         c = report["cut_off"]
         text += (f"\n\n⚠ {len(c)} background task{'s were' if len(c) != 1 else ' was'} still running when this curation "
@@ -1685,6 +1718,13 @@ def finish_curation(sid, path, st, dream, cfg, cwd, cut_off=None, last_message=N
     if st.get("dream_saved"):
         done = [t for t in st.get("waiting_on") or [] if (t.get("id") or t.get("description")) not in still]
         if done:
+            fin = finished_tasks(path)
+            done = [dict(t, report_arrived=any(k and k in fin for k in (t.get("id"), t.get("tool_use_id"))))
+                    for t in done]
+            missing = [t for t in done if not t["report_arrived"]]
+            if missing:
+                located = locate_tasks(missing, path, st)
+                done = [t if t["report_arrived"] else dict(located.pop(0), report_arrived=False) for t in done]
             rep["waited"] = done
     if cut_off:
         rep["cut_off"] = locate_tasks(cut_off, path, st)
@@ -1745,7 +1785,8 @@ def hook_stop(inp, cfg):
     st.setdefault("lineage", sid)
     st["path"] = str(path)
     running = running_tasks(inp)
-    st["tasks_seen"] = {"t": time.time(), "tasks": running or [], "reported": running is not None}
+    crons = scheduled_tasks(inp)
+    st["tasks_seen"] = {"t": time.time(), "tasks": running or [], "reported": running is not None, "crons": crons}
     if running is None:       # a Claude Code that doesn't report background work: scan for agents instead
         running = [{"type": "subagent", "description": d} for d in live_subagents(path)]
     last = inp.get("last_assistant_message") or ""
@@ -1804,9 +1845,10 @@ def hook_stop(inp, cfg):
         st["enabled_here"] = False
         save_state(sid, st)
         return log(sid[:8], "teammate session; Tides stays out of it")
-    if not is_due or not (running or inp.get("session_crons")):
+    held = (running or []) + crons
+    if not is_due or not held:
         st.pop("hold", None)
-    if is_due and (running or inp.get("session_crons")):
+    if is_due and held:
         if running and forced_now(path, st, cfg):
             start_curation(sid, path, st, "stop")
             st["force"] = True
@@ -1815,15 +1857,14 @@ def hook_stop(inp, cfg):
             return emit({"decision": "block", "reason": notice_text(path, st, cfg, reason="limit", cut_off=running),
                          "systemMessage": "🌙 Claude is curating its memory (Tides). Back in a minute or two."})
         log(sid[:8], "due, but background work is running; waiting")
-        if running:
-            hold = st.setdefault("hold", {"since": time.time()})
-            if not hold.get("told_person"):
-                hold["told_person"] = True
-                save_state(sid, st)
-                return emit({"systemMessage": f"🌙 Tides: a curation is due but waits while background work runs "
-                                              f"({describe_tasks(running)}). It starts by itself when that work is done; "
-                                              f"`{CLI} begin --force` curates now and cuts it off."})
+        hold = st.setdefault("hold", {"since": time.time()})
+        if not hold.get("told_person"):
+            hold["told_person"] = True
             save_state(sid, st)
+            return emit({"systemMessage": f"🌙 Tides: a curation is due but waits while background work runs "
+                                          f"({describe_tasks(held)}). It starts by itself when that work is done; "
+                                          f"`{CLI} begin --force` curates now and cuts it off."})
+        save_state(sid, st)
         return
     if is_due:
         start_curation(sid, path, st, "stop")
@@ -1957,6 +1998,19 @@ FORCE_AT = 0.90              # of the effective window, when Claude Code's compa
 OUTPUT_RESERVE = 20000       # Claude Code keeps this much of the window for the reply (2.1.322)
 
 
+def scheduled_tasks(inp):
+    """This session's scheduled prompts (Stop input `session_crons`), as held work: they live in this session."""
+    out = []
+    for c in inp.get("session_crons") or []:
+        if isinstance(c, dict):
+            out.append({"id": c.get("id") or "", "type": "scheduled prompt",
+                        "description": cut(str(c.get("prompt") or c.get("id") or "?"), 80),
+                        "command": str(c.get("schedule") or c.get("cron") or ""), "cron": True})
+        else:
+            out.append({"type": "scheduled prompt", "description": cut(str(c), 80), "cron": True})
+    return out
+
+
 def running_tasks(inp):
     """The background work a tide would cut off, from a Stop input; None if this Claude Code doesn't say."""
     if "background_tasks" not in inp:
@@ -2054,7 +2108,7 @@ def tasks_in_flight(path, st):
         for k, t in list(run.items()):
             if any(key and done.get(key, -1) >= t["since"] - 5 for key in (t.get("id"), t.get("tool_use_id"))):
                 run.pop(k)
-    return [{k: v for k, v in t.items() if k not in ("since", "t")} for t in run.values()] + scan
+    return [{k: v for k, v in t.items() if k not in ("since", "t")} for t in run.values()] + scan + list(snap.get("crons") or [])
 
 
 def compaction_off():

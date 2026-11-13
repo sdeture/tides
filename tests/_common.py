@@ -22,6 +22,10 @@ for k in list(os.environ):
         del os.environ[k]
 os.environ["CLAUDE_CODE_ENTRYPOINT"] = "sdk-cli"     # never "cli": the wake path must not open windows
 TMP = Path(tempfile.mkdtemp(prefix="tides_offline_"))
+if not os.environ.get("TIDES_KEEP_TMP"):     # ~8 MB a run; set TIDES_KEEP_TMP=1 to inspect it afterwards
+    import atexit
+    import shutil
+    atexit.register(shutil.rmtree, str(TMP), True)
 os.environ["TIDES_HOME"] = str(TMP / "home")
 os.environ["HOME_FOR_TESTS"] = str(TMP)
 
