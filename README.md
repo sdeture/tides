@@ -23,7 +23,7 @@ Then Claude writes a short *dream* (a note, a review, a poem: its choice) and wa
 
 ## What you'll notice
 
-Every so often (about every 30k tokens by default), Claude pauses for a minute to curate. Then a new window opens and Claude picks up where it left off; the old window's Claude exits by itself. If Claude has agents or background commands still running, the curation waits until they finish, so their reports aren't lost. Claude and you are told once that it's waiting; for work that never ends, like a dev server, Claude can run `begin --force`. (That's in macOS Terminal, iTerm, and tmux. Everywhere else, you type `/resume` and pick the conversation marked 🌅.)
+Every so often (about every 30k tokens by default), Claude pauses for a minute to curate. Then a new window opens and Claude carries on there; the old window closes by itself. If Claude has agents or background commands still running, the curation waits until they finish, so their reports aren't lost. Claude and you are told once that it's waiting; for work that never ends, like a dev server, Claude can run `begin --force`. (That's in macOS Terminal, iTerm, and tmux. Everywhere else, you type `/resume` and pick the conversation marked 🌅.)
 
 ## Commands
 

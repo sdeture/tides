@@ -1477,7 +1477,7 @@ def wake(sid, cwd, cfg, text, inp=None, old_path=None, busy=False):
         if cfg.get("end_old", True) and pid and not busy:
             subprocess.Popen(["sh", "-c", f"sleep 4; kill -TERM {int(pid)} 2>/dev/null"], start_new_session=True,
                              stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            return "🌅 Claude curated its memory and is waking up in a new window. This window's Claude will exit in a moment."
+            return "🌅 Claude curated its memory and is carrying on in a new window. This window will close in a moment."
         return "🌅 Claude curated its memory and is waking up in a new window. You can close this one."
     title = (load_state(sid).get("title") or "conversation")[:60]
     n = load_state(sid).get("curation", "")
